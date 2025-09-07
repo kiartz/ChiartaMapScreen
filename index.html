@@ -124,6 +124,7 @@
     name: "Project",
     canvas: { width: 1920, height: 1080, background: "#111111" },
     compositions: [], // {id,name,rows,cols,tileW,tileH,x,y,rotation,locked,visible,pitch}
+    selectedId: null,
     version: 1
   };
 
@@ -138,19 +139,29 @@
   const exportPNG = $("exportPNG"), exportSVG=$("exportSVG"), exportJSON=$("exportJSON"), exportCSV=$("exportCSV");
   const saveBtn=$("save"), loadBtn=$("load"), clearBtn=$("clear");
 
+  // Bottone per aggiornare la composizione selezionata
+  let updateBtn;
+  (function ensureUpdateButton(){
+    updateBtn = document.createElement('button');
+    updateBtn.id = 'update';
+    updateBtn.textContent = 'Aggiorna composizione';
+    updateBtn.className = 'secondary';
+    $("left").querySelector('.panel').appendChild(updateBtn);
+  })();
+
   // ---- Konva Stage & Layers -------------------------------------------------
-  let stage, layerBg, layerComps, layerTiles;
+  let stage, layerBg, layerComps; // rimosso layerTiles per evitare “ghost”
   function initStage() {
     stageHost.innerHTML = "";
     stage = new Konva.Stage({ width: state.canvas.width + 20, height: state.canvas.height + 20, container: "stageHost" });
-    layerBg = new Konva.Layer(); layerComps = new Konva.Layer(); layerTiles = new Konva.Layer();
-    stage.add(layerBg); stage.add(layerTiles); stage.add(layerComps);
+    layerBg = new Konva.Layer(); layerComps = new Konva.Layer();
+    stage.add(layerBg); stage.add(layerComps);
     drawBackground();
     stage.draggable(true);
     stage.on('wheel', (e) => {
       if (!(e.evt.ctrlKey || e.evt.metaKey)) return;
       e.evt.preventDefault();
-      const oldScale = stage.scaleX();
+      const oldScale = stage.scaleX() || 1;
       const pointer = stage.getPointerPosition();
       const scaleBy = 1.05;
       const direction = e.evt.deltaY > 0 ? -1 : 1;
@@ -174,7 +185,6 @@
     const padding = 10;
     const bg = new Konva.Rect({ x: padding, y: padding, width: state.canvas.width, height: state.canvas.height, fill: '#0c0c0c', stroke: '#222', strokeWidth: 1 });
     layerBg.add(bg);
-    // guide linee ogni 100px
     for (let x = padding; x <= state.canvas.width + padding; x += 100) {
       layerBg.add(new Konva.Line({ points:[x,padding, x, state.canvas.height+padding], stroke:'#1a1a1a', strokeWidth:1 }));
     }
@@ -201,33 +211,48 @@
   function physicalWidthMeters(comp) {
     if (!comp.pitch) return null;
     const pixelsWide = comp.cols * comp.tileW;
-    return (pixelsWide * comp.pitch) / 1000 / 1000; // mm -> m
+    return (pixelsWide * comp.pitch) / 1_000_000; // mm -> m
   }
+  const pxSize = (c)=>({w:c.cols*c.tileW, h:c.rows*c.tileH});
 
   // ---- Render composizioni --------------------------------------------------
+  // Maintains a map id -> group for quick updates/highlight
+  const groupMap = new Map();
+
   function renderAll() {
-    layerTiles.destroyChildren();
+    groupMap.clear();
     layerComps.destroyChildren();
     state.compositions.forEach(comp => renderComposition(comp));
-    layerTiles.draw(); layerComps.draw();
+    layerComps.draw();
   }
 
   function renderComposition(comp) {
     const b = bboxOf(comp);
-    // Griglia tile (solo linee, performance)
-    const group = new Konva.Group({ x: b.x, y: b.y, draggable: !comp.locked });
-    // bbox
-    const rect = new Konva.Rect({ x:0, y:0, width:b.w, height:b.h, stroke:'#3aa', strokeWidth:2, dash:[4,4], listening:false });
+    const group = new Konva.Group({ x: b.x, y: b.y, draggable: !comp.locked, id: comp.id });
+    // Bordi/griglia
+    const rect = new Konva.Rect({ x:0, y:0, width:b.w, height:b.h, stroke: comp.id===state.selectedId?'#7fd':'#3aa', strokeWidth: comp.id===state.selectedId?3:2, dash:[4,4] });
     group.add(rect);
-    // linee verticali
     for (let c=1;c<comp.cols;c++) group.add(new Konva.Line({ points:[c*comp.tileW,0, c*comp.tileW,b.h], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
-    // linee orizzontali
     for (let r=1;r<comp.rows;r++) group.add(new Konva.Line({ points:[0,r*comp.tileH, b.w,r*comp.tileH], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
-    // etichetta
-    const label = new Konva.Label({ x:4, y:4 });
-    label.add(new Konva.Tag({ fill:'rgba(0,0,0,0.6)', cornerRadius:4 }));
-    label.add(new Konva.Text({ text:`${comp.name}  ${comp.cols}×${comp.rows} @ ${comp.tileW}×${comp.tileH}`, fontSize:12, fill:'#ddd', padding:4 }));
-    group.add(label);
+
+    // Info top-left: dimensioni e offset
+    const size = pxSize(comp);
+    const offText = new Konva.Text({
+      x: 4, y: 4, text: `${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`,
+      fontSize: 12, fill:'#ddd'
+    });
+    group.add(offText);
+
+    // Nome centrato (orizzontale e verticale)
+    const nameText = new Konva.Text({
+      text: comp.name,
+      fontSize: 14, fontStyle: 'bold', fill:'#eee',
+      x: 0, y: (b.h - 16) / 2, width: b.w, align: 'center'
+    });
+    group.add(nameText);
+
+    // Interazioni
+    group.on('mousedown touchstart', () => selectComposition(comp.id));
 
     group.on('dragmove', (e) => {
       const g = e.target;
@@ -235,11 +260,11 @@
       const moved = { x: proposed.x, y: proposed.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
       if (!collidesAny(comp.id, moved) && canvasClamp(moved)) {
         g.position(proposed);
+        // Aggiorna label offset live
+        offText.text(`${size.w}×${size.h}px • (${proposed.x - padding},${proposed.y - padding})`);
         msg.textContent = '';
       } else {
         msg.textContent = '❌ Sovrapposizione o fuori dal canvas';
-        // reset posizione per evitare intersezione visiva
-        g.position({x:comp.x, y:comp.y});
       }
       layerComps.batchDraw();
     });
@@ -250,17 +275,61 @@
       const moved = { x: proposed.x, y: proposed.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
       if (!collidesAny(comp.id, moved) && canvasClamp(moved)) {
         comp.x = proposed.x; comp.y = proposed.y;
+        offText.text(`${size.w}×${size.h}px • (${proposed.x - padding},${proposed.y - padding})`);
+        refreshList(); // aggiorna offset in lista
+        saveAutosafe();
       } else {
         // ripristina
         g.position({x:comp.x, y:comp.y});
+        offText.text(`${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`);
+        layerComps.draw();
       }
-      layerComps.draw();
-      saveAutosafe();
     });
 
     layerComps.add(group);
-    // griglia sotto (solo disegno)
-    layerTiles.add(group.clone({ listening:false, draggable:false }));
+    groupMap.set(comp.id, group);
+  }
+
+  // ---- Selezione & editing --------------------------------------------------
+  function selectComposition(id) {
+    state.selectedId = id;
+    // highlight riquadri
+    renderAll();
+    // popola form
+    const c = state.compositions.find(x => x.id===id);
+    if (!c) return;
+    name.value = c.name; rows.value = c.rows; cols.value = c.cols; tileW.value = c.tileW; tileH.value = c.tileH;
+    posX.value = c.x - padding; posY.value = c.y - padding;
+    pitch.value = c.pitch ?? '';
+    updatePhysicalWidthHint();
+    msg.textContent = `✳️ Selezionata: ${c.name}`;
+  }
+
+  function tryApplyUpdate() {
+    const id = state.selectedId;
+    if (!id) { msg.textContent='Seleziona una composizione da aggiornare.'; return; }
+    const c = state.compositions.find(x => x.id===id); if (!c) return;
+    // nuovi valori (solo numerici come richiesto)
+    const nv = {
+      name: (name.value || c.name).trim(),
+      rows: parseInt(rows.value||c.rows,10),
+      cols: parseInt(cols.value||c.cols,10),
+      tileW: parseInt(tileW.value||c.tileW,10),
+      tileH: parseInt(tileH.value||c.tileH,10),
+      x: padding + parseInt(posX.value|| (c.x-padding),10),
+      y: padding + parseInt(posY.value|| (c.y-padding),10),
+      pitch: parseFloat(pitch.value)||null
+    };
+    if (!nv.rows||!nv.cols||!nv.tileW||!nv.tileH) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
+    // costruiamo bbox proposto e verifichiamo collisioni
+    const proposed = { ...c, ...nv };
+    const b = bboxOf(proposed);
+    if (collidesAny(c.id, b) || !canvasClamp(b)) { msg.textContent='❌ Sovrapposizione o fuori dal canvas'; return; }
+
+    // applica
+    Object.assign(c, nv);
+    refreshList(); renderAll(); saveAutosafe();
+    msg.textContent = `✅ Aggiornata ${c.name}`;
   }
 
   // ---- Lista composizioni (sidebar) ----------------------------------------
@@ -269,27 +338,36 @@
     for (const c of state.compositions) {
       const li = document.createElement('li');
       const left = document.createElement('div');
-      left.innerHTML = `<strong>${c.name}</strong><div class="tag">${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH} px — pos (${c.x},${c.y})${c.pitch?` • ~${physicalWidthMeters(c).toFixed(2)} m`:''}</div>`;
+      const size = pxSize(c);
+      left.innerHTML = `<strong style="cursor:pointer">${c.name}</strong>
+        <div class="tag">${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH}px — ${size.w}×${size.h}px — pos (${c.x - padding},${c.y - padding})${c.pitch?` • ~${physicalWidthMeters(c).toFixed(2)} m`:''}</div>`;
       const right = document.createElement('div');
+      const sel = document.createElement('button'); sel.textContent = 'Seleziona'; sel.className='secondary';
       const lock = document.createElement('button'); lock.textContent = c.locked?'Unlock':'Lock'; lock.className='secondary';
       const dup = document.createElement('button'); dup.textContent = 'Duplica'; dup.className='secondary';
       const del = document.createElement('button'); del.textContent = 'Elimina'; del.className='warn';
+
+      left.querySelector('strong').onclick = () => selectComposition(c.id);
+      sel.onclick = () => selectComposition(c.id);
       lock.onclick = () => { c.locked=!c.locked; renderAll(); refreshList(); saveAutosafe(); };
       dup.onclick = () => {
         const nc = structuredClone(c);
         nc.id = crypto.randomUUID(); nc.name = c.name+' Copy'; nc.x += 20; nc.y += 20;
-        if (!collidesAny(nc.id, {x:nc.x,y:nc.y,w:nc.cols*nc.tileW,h:nc.rows*nc.tileH,get x2(){return this.x+this.w},get y2(){return this.y+this.h}}) && canvasClamp(bboxOf(nc))) {
+        const b = bboxOf(nc);
+        if (!collidesAny(nc.id, b) && canvasClamp(b)) {
           state.compositions.push(nc); renderAll(); refreshList(); saveAutosafe();
         } else msg.textContent = '❌ Sposta o riduci per evitare sovrapposizioni.';
       };
-      del.onclick = () => { state.compositions = state.compositions.filter(x=>x.id!==c.id); renderAll(); refreshList(); saveAutosafe(); };
-      right.append(lock, dup, del);
+      del.onclick = () => { state.compositions = state.compositions.filter(x=>x.id!==c.id); if (state.selectedId===c.id) state.selectedId=null; renderAll(); refreshList(); saveAutosafe(); };
+
+      right.append(sel, lock, dup, del);
       li.append(left, right);
+      if (state.selectedId===c.id) li.style.outline='2px solid #3aa';
       list.append(li);
     }
   }
 
-  // ---- Creazione / Validazioni ---------------------------------------------
+  // ---- Creazione ------------------------------------------------------------
   function addComposition() {
     const r = parseInt(rows.value,10), c = parseInt(cols.value,10), tw = parseInt(tileW.value,10), th = parseInt(tileH.value,10);
     const x = padding + parseInt(posX.value,10), y = padding + parseInt(posY.value,10);
@@ -297,11 +375,9 @@
     if (!r||!c||!tw||!th) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
     const comp = { id: crypto.randomUUID(), name: nm, rows:r, cols:c, tileW:tw, tileH:th, x:snap(x), y:snap(y), rotation:0, locked:false, visible:true, pitch: parseFloat(pitch.value)||null };
     const b = bboxOf(comp);
-    if (collidesAny(comp.id, {x:b.x,y:b.y,w:b.w,h:b.h,get x2(){return this.x+this.w},get y2(){return this.y+this.h}}) || !canvasClamp(b)) {
-      msg.textContent = '❌ Sovrapposizione o fuori dal canvas';
-      return;
-    }
+    if (collidesAny(comp.id, b) || !canvasClamp(b)) { msg.textContent = '❌ Sovrapposizione o fuori dal canvas'; return; }
     state.compositions.push(comp);
+    state.selectedId = comp.id;
     renderAll(); refreshList(); saveAutosafe();
     updatePhysicalWidthHint();
     msg.textContent = `✅ Aggiunta ${comp.name}`;
@@ -339,9 +415,6 @@
     saveAs(dataURL, 'ledwall-mapper.png');
   };
   exportSVG.onclick = () => {
-    // Esporta solo layer composizioni+griglia dentro i limiti del canvas
-    const node = stage.toCanvas();
-    // Fallback semplice: raster → PNG già sopra; per SVG possiamo generare uno schematico:
     const svgParts = [];
     const cx = padding, cy = padding, cw = state.canvas.width, ch = state.canvas.height;
     svgParts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${cw}" height="${ch}">`);
@@ -351,7 +424,8 @@
       svgParts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#3aa" stroke-dasharray="4,4" />`);
       for (let xx = c.tileW; xx < w; xx += c.tileW) svgParts.push(`<line x1="${x+xx}" y1="${y}" x2="${x+xx}" y2="${y+h}" stroke="#1e3f3f" stroke-width="1" />`);
       for (let yy = c.tileH; yy < h; yy += c.tileH) svgParts.push(`<line x1="${x}" y1="${y+yy}" x2="${x+w}" y2="${y+yy}" stroke="#1e3f3f" stroke-width="1" />`);
-      svgParts.push(`<text x="${x+4}" y="${y+14}" fill="#ddd" font-size="12">${c.name} ${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH}</text>`);
+      svgParts.push(`<text x="${x+4}" y="${y+14}" fill="#ddd" font-size="12">${w}×${h}px • (${x},${y})</text>`);
+      svgParts.push(`<text x="${x}" y="${y + h/2}" fill="#eee" font-size="14" text-anchor="middle" dominant-baseline="middle" transform="translate(${x + w/2},0)">${c.name}</text>`);
     }
     svgParts.push(`</svg>`);
     const blob = new Blob([svgParts.join("")], {type:'image/svg+xml;charset=utf-8'});
@@ -362,10 +436,8 @@
     saveAs(blob, 'project.json');
   };
   exportCSV.onclick = () => {
-    // CSV per tutte le composizioni con coordinate tile
     const rows = [];
     for (const comp of state.compositions) {
-      const compW = comp.cols * comp.tileW, compH = comp.rows * comp.tileH;
       for (let r=0; r<comp.rows; r++) {
         for (let c=0; c<comp.cols; c++) {
           const x = comp.x + c*comp.tileW - padding;
@@ -402,12 +474,14 @@
   clearBtn.onclick = () => {
     state.projectId = crypto.randomUUID();
     state.compositions = [];
-    msg.textContent='✅ Nuovo progetto';
+    state.selectedId = null;
+    msg.textContent = '✅ Nuovo progetto';
     renderAll(); refreshList(); saveAutosafe();
   };
 
   // ---- Hook UI --------------------------------------------------------------
   addBtn.addEventListener('click', addComposition);
+  updateBtn.addEventListener('click', tryApplyUpdate);
 
   // ---- Boot -----------------------------------------------------------------
   initStage();
