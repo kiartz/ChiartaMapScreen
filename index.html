@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <title>LEDWall Mapper (MVP)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --bg:#111; --fg:#eee; --muted:#888; --acc:#3aa; --warn:#c93; }
+    body { margin:0; background:var(--bg); color:var(--fg); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    header, footer { padding:8px 12px; background:#0b0b0b; position:sticky; top:0; z-index:10; }
+    main { display:flex; gap:10px; padding:10px; }
+    .panel { background:#151515; border:1px solid #222; border-radius:8px; padding:10px; }
+    #left { width:320px; display:flex; flex-direction:column; gap:10px; }
+    #canvasWrap { flex:1; display:flex; flex-direction:column; gap:8px; min-width:300px; }
+    label { display:block; margin:6px 0 2px; color:#ccc; }
+    input[type="number"], input[type="text"], select { width:100%; padding:6px; background:#0f0f0f; color:#fff; border:1px solid #333; border-radius:6px; }
+    .row { display:flex; gap:8px; }
+    .row > * { flex:1; }
+    button { padding:8px 10px; background:var(--acc); color:#001; border:none; border-radius:6px; font-weight:600; cursor:pointer; }
+    button.secondary { background:#222; color:#ddd; border:1px solid #333; }
+    button.warn { background:var(--warn); color:#000; }
+    ul { list-style:none; padding:0; margin:0; }
+    li { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px; border-bottom:1px solid #222; }
+    .tag { font-size:12px; color:#aaa; }
+    #stageHost { background:#0a0a0a; border:1px solid #222; border-radius:8px; overflow:auto; padding:8px; }
+    #message { color:#ccc; min-height:1.2em; }
+  </style>
+  <!-- Konva (canvas interattivo) -->
+  <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+  <!-- PapaParse (CSV) -->
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  <!-- FileSaver (download) -->
+  <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div style="flex:2">
+      <strong>LEDWall Mapper</strong>
+      <span class="tag">MVP • multi-composizione • no-overlap</span>
+    </div>
+    <div class="row" style="flex:3">
+      <select id="preset">
+        <option value="">Preset risoluzione</option>
+        <option>1280x720</option>
+        <option>1920x1080</option>
+        <option>2560x1440</option>
+        <option>3840x2160</option>
+        <option>7680x4320</option>
+      </select>
+      <input id="canvasW" type="number" min="1" placeholder="Canvas W (px)" />
+      <input id="canvasH" type="number" min="1" placeholder="Canvas H (px)" />
+      <button id="setCanvas">Applica</button>
+      <button id="exportPNG" class="secondary">PNG</button>
+      <button id="exportSVG" class="secondary">SVG</button>
+      <button id="exportJSON" class="secondary">JSON</button>
+      <button id="exportCSV" class="secondary">CSV</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="left">
+    <div class="panel">
+      <h3 style="margin:0 0 8px">Nuova Composizione</h3>
+      <label>Nome</label><input id="name" type="text" placeholder="Ledwall Main" />
+      <div class="row">
+        <div><label>Righe (R)</label><input id="rows" type="number" min="1" value="6" /></div>
+        <div><label>Colonne (C)</label><input id="cols" type="number" min="1" value="12" /></div>
+      </div>
+      <div class="row">
+        <div><label>Tile W (px)</label><input id="tileW" type="number" min="1" value="128" /></div>
+        <div><label>Tile H (px)</label><input id="tileH" type="number" min="1" value="128" /></div>
+      </div>
+      <div class="row">
+        <div><label>Pos X</label><input id="posX" type="number" value="50" /></div>
+        <div><label>Pos Y</label><input id="posY" type="number" value="50" /></div>
+      </div>
+      <div class="row">
+        <div><label>Pitch (mm)</label><input id="pitch" type="number" step="0.1" placeholder="opzionale" /></div>
+        <div><label>Larghezza fisica (m)</label><input id="widthM" type="text" disabled placeholder="auto" /></div>
+      </div>
+      <button id="add">Aggiungi composizione</button>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 8px">Composizioni</h3>
+      <ul id="compositions"></ul>
+      <div class="row" style="margin-top:8px">
+        <button id="save">Salva progetto</button>
+        <button id="load" class="secondary">Carica</button>
+        <button id="clear" class="warn">Nuovo</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin:0 0 8px">Info</h3>
+      <div id="message"></div>
+    </div>
+  </section>
+
+  <section id="canvasWrap">
+    <div class="panel" style="display:flex; flex-direction:column; gap:8px">
+      <div class="row" style="align-items:center">
+        <div>Canvas: <span id="canvasInfo">–</span></div>
+        <div class="tag">Pan: trascina sfondo • Zoom: ctrl/cmd + rotella</div>
+      </div>
+      <div id="stageHost">
+        <!-- Konva Stage verrà inserito qui -->
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span class="tag">Tip: Le composizioni non possono sovrapporsi. Trascinale: si agganciano a 1px e ai bordi esistenti.</span>
+</footer>
+
+<script>
+(() => {
+  // ---- Stato progetto -------------------------------------------------------
+  const state = {
+    projectId: crypto.randomUUID(),
+    name: "Project",
+    canvas: { width: 1920, height: 1080, background: "#111111" },
+    compositions: [], // {id,name,rows,cols,tileW,tileH,x,y,rotation,locked,visible,pitch}
+    version: 1
+  };
+
+  // ---- UI refs --------------------------------------------------------------
+  const $ = id => document.getElementById(id);
+  const preset = $("preset"), canvasW = $("canvasW"), canvasH = $("canvasH");
+  const setCanvasBtn = $("setCanvas");
+  const stageHost = $("stageHost"), canvasInfo = $("canvasInfo"), msg = $("message");
+  const name = $("name"), rows = $("rows"), cols = $("cols"), tileW = $("tileW"), tileH = $("tileH"), posX = $("posX"), posY = $("posY");
+  const pitch = $("pitch"), widthM = $("widthM");
+  const addBtn = $("add"), list = $("compositions");
+  const exportPNG = $("exportPNG"), exportSVG=$("exportSVG"), exportJSON=$("exportJSON"), exportCSV=$("exportCSV");
+  const saveBtn=$("save"), loadBtn=$("load"), clearBtn=$("clear");
+
+  // ---- Konva Stage & Layers -------------------------------------------------
+  let stage, layerBg, layerComps, layerTiles;
+  function initStage() {
+    stageHost.innerHTML = "";
+    stage = new Konva.Stage({ width: state.canvas.width + 20, height: state.canvas.height + 20, container: "stageHost" });
+    layerBg = new Konva.Layer(); layerComps = new Konva.Layer(); layerTiles = new Konva.Layer();
+    stage.add(layerBg); stage.add(layerTiles); stage.add(layerComps);
+    drawBackground();
+    stage.draggable(true);
+    stage.on('wheel', (e) => {
+      if (!(e.evt.ctrlKey || e.evt.metaKey)) return;
+      e.evt.preventDefault();
+      const oldScale = stage.scaleX();
+      const pointer = stage.getPointerPosition();
+      const scaleBy = 1.05;
+      const direction = e.evt.deltaY > 0 ? -1 : 1;
+      const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+      const mousePointTo = {
+        x: (pointer.x - stage.x()) / oldScale,
+        y: (pointer.y - stage.y()) / oldScale,
+      };
+      stage.scale({ x: newScale, y: newScale });
+      const newPos = {
+        x: pointer.x - mousePointTo.x * newScale,
+        y: pointer.y - mousePointTo.y * newScale,
+      };
+      stage.position(newPos);
+      stage.batchDraw();
+    });
+  }
+
+  function drawBackground() {
+    layerBg.destroyChildren();
+    const padding = 10;
+    const bg = new Konva.Rect({ x: padding, y: padding, width: state.canvas.width, height: state.canvas.height, fill: '#0c0c0c', stroke: '#222', strokeWidth: 1 });
+    layerBg.add(bg);
+    // guide linee ogni 100px
+    for (let x = padding; x <= state.canvas.width + padding; x += 100) {
+      layerBg.add(new Konva.Line({ points:[x,padding, x, state.canvas.height+padding], stroke:'#1a1a1a', strokeWidth:1 }));
+    }
+    for (let y = padding; y <= state.canvas.height + padding; y += 100) {
+      layerBg.add(new Konva.Line({ points:[padding,y, state.canvas.width+padding, y], stroke:'#1a1a1a', strokeWidth:1 }));
+    }
+    layerBg.draw();
+    canvasInfo.textContent = `${state.canvas.width}×${state.canvas.height}px`;
+  }
+
+  // ---- Utility --------------------------------------------------------------
+  const padding = 10; // bordo canvas nel container Konva
+  const snapStep = 1;
+  const snap = v => Math.round(v / snapStep) * snapStep;
+  const bboxOf = (c) => ({ x: c.x, y: c.y, w: c.cols * c.tileW, h: c.rows * c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} });
+  const overlap = (a, b) => !(a.x2 <= b.x || a.x >= b.x2 || a.y2 <= b.y || a.y >= b.y2);
+  function collidesAny(id, movedBBox) {
+    return state.compositions.some(c => c.id !== id && overlap(movedBBox, bboxOf(c)));
+  }
+  function canvasClamp(b) {
+    const cx1 = padding, cy1 = padding, cx2 = padding + state.canvas.width, cy2 = padding + state.canvas.height;
+    return b.x >= cx1 && b.y >= cy1 && b.x2 <= cx2 && b.y2 <= cy2;
+  }
+  function physicalWidthMeters(comp) {
+    if (!comp.pitch) return null;
+    const pixelsWide = comp.cols * comp.tileW;
+    return (pixelsWide * comp.pitch) / 1000 / 1000; // mm -> m
+  }
+
+  // ---- Render composizioni --------------------------------------------------
+  function renderAll() {
+    layerTiles.destroyChildren();
+    layerComps.destroyChildren();
+    state.compositions.forEach(comp => renderComposition(comp));
+    layerTiles.draw(); layerComps.draw();
+  }
+
+  function renderComposition(comp) {
+    const b = bboxOf(comp);
+    // Griglia tile (solo linee, performance)
+    const group = new Konva.Group({ x: b.x, y: b.y, draggable: !comp.locked });
+    // bbox
+    const rect = new Konva.Rect({ x:0, y:0, width:b.w, height:b.h, stroke:'#3aa', strokeWidth:2, dash:[4,4], listening:false });
+    group.add(rect);
+    // linee verticali
+    for (let c=1;c<comp.cols;c++) group.add(new Konva.Line({ points:[c*comp.tileW,0, c*comp.tileW,b.h], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
+    // linee orizzontali
+    for (let r=1;r<comp.rows;r++) group.add(new Konva.Line({ points:[0,r*comp.tileH, b.w,r*comp.tileH], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
+    // etichetta
+    const label = new Konva.Label({ x:4, y:4 });
+    label.add(new Konva.Tag({ fill:'rgba(0,0,0,0.6)', cornerRadius:4 }));
+    label.add(new Konva.Text({ text:`${comp.name}  ${comp.cols}×${comp.rows} @ ${comp.tileW}×${comp.tileH}`, fontSize:12, fill:'#ddd', padding:4 }));
+    group.add(label);
+
+    group.on('dragmove', (e) => {
+      const g = e.target;
+      const proposed = { x: snap(g.x()), y: snap(g.y()) };
+      const moved = { x: proposed.x, y: proposed.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+      if (!collidesAny(comp.id, moved) && canvasClamp(moved)) {
+        g.position(proposed);
+        msg.textContent = '';
+      } else {
+        msg.textContent = '❌ Sovrapposizione o fuori dal canvas';
+        // reset posizione per evitare intersezione visiva
+        g.position({x:comp.x, y:comp.y});
+      }
+      layerComps.batchDraw();
+    });
+
+    group.on('dragend', (e) => {
+      const g = e.target;
+      const proposed = { x: snap(g.x()), y: snap(g.y()) };
+      const moved = { x: proposed.x, y: proposed.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+      if (!collidesAny(comp.id, moved) && canvasClamp(moved)) {
+        comp.x = proposed.x; comp.y = proposed.y;
+      } else {
+        // ripristina
+        g.position({x:comp.x, y:comp.y});
+      }
+      layerComps.draw();
+      saveAutosafe();
+    });
+
+    layerComps.add(group);
+    // griglia sotto (solo disegno)
+    layerTiles.add(group.clone({ listening:false, draggable:false }));
+  }
+
+  // ---- Lista composizioni (sidebar) ----------------------------------------
+  function refreshList() {
+    list.innerHTML = "";
+    for (const c of state.compositions) {
+      const li = document.createElement('li');
+      const left = document.createElement('div');
+      left.innerHTML = `<strong>${c.name}</strong><div class="tag">${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH} px — pos (${c.x},${c.y})${c.pitch?` • ~${physicalWidthMeters(c).toFixed(2)} m`:''}</div>`;
+      const right = document.createElement('div');
+      const lock = document.createElement('button'); lock.textContent = c.locked?'Unlock':'Lock'; lock.className='secondary';
+      const dup = document.createElement('button'); dup.textContent = 'Duplica'; dup.className='secondary';
+      const del = document.createElement('button'); del.textContent = 'Elimina'; del.className='warn';
+      lock.onclick = () => { c.locked=!c.locked; renderAll(); refreshList(); saveAutosafe(); };
+      dup.onclick = () => {
+        const nc = structuredClone(c);
+        nc.id = crypto.randomUUID(); nc.name = c.name+' Copy'; nc.x += 20; nc.y += 20;
+        if (!collidesAny(nc.id, {x:nc.x,y:nc.y,w:nc.cols*nc.tileW,h:nc.rows*nc.tileH,get x2(){return this.x+this.w},get y2(){return this.y+this.h}}) && canvasClamp(bboxOf(nc))) {
+          state.compositions.push(nc); renderAll(); refreshList(); saveAutosafe();
+        } else msg.textContent = '❌ Sposta o riduci per evitare sovrapposizioni.';
+      };
+      del.onclick = () => { state.compositions = state.compositions.filter(x=>x.id!==c.id); renderAll(); refreshList(); saveAutosafe(); };
+      right.append(lock, dup, del);
+      li.append(left, right);
+      list.append(li);
+    }
+  }
+
+  // ---- Creazione / Validazioni ---------------------------------------------
+  function addComposition() {
+    const r = parseInt(rows.value,10), c = parseInt(cols.value,10), tw = parseInt(tileW.value,10), th = parseInt(tileH.value,10);
+    const x = padding + parseInt(posX.value,10), y = padding + parseInt(posY.value,10);
+    const nm = (name.value || "Composizione").trim();
+    if (!r||!c||!tw||!th) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
+    const comp = { id: crypto.randomUUID(), name: nm, rows:r, cols:c, tileW:tw, tileH:th, x:snap(x), y:snap(y), rotation:0, locked:false, visible:true, pitch: parseFloat(pitch.value)||null };
+    const b = bboxOf(comp);
+    if (collidesAny(comp.id, {x:b.x,y:b.y,w:b.w,h:b.h,get x2(){return this.x+this.w},get y2(){return this.y+this.h}}) || !canvasClamp(b)) {
+      msg.textContent = '❌ Sovrapposizione o fuori dal canvas';
+      return;
+    }
+    state.compositions.push(comp);
+    renderAll(); refreshList(); saveAutosafe();
+    updatePhysicalWidthHint();
+    msg.textContent = `✅ Aggiunta ${comp.name}`;
+  }
+
+  function updatePhysicalWidthHint() {
+    const pitchVal = parseFloat(pitch.value);
+    const c = { cols: parseInt(cols.value||0,10), tileW: parseInt(tileW.value||0,10), pitch:pitchVal };
+    if (pitchVal && c.cols && c.tileW) {
+      const px = c.cols * c.tileW;
+      widthM.value = ((px * pitchVal)/1_000_000).toFixed(2);
+    } else widthM.value = '';
+  }
+  pitch.addEventListener('input', updatePhysicalWidthHint);
+  cols.addEventListener('input', updatePhysicalWidthHint);
+  tileW.addEventListener('input', updatePhysicalWidthHint);
+
+  // ---- Canvas preset/custom -------------------------------------------------
+  preset.addEventListener('change', () => {
+    if (!preset.value) return;
+    const [w,h] = preset.value.split('x').map(Number);
+    canvasW.value = w; canvasH.value = h;
+  });
+  setCanvasBtn.addEventListener('click', () => {
+    const w = parseInt(canvasW.value||0,10), h = parseInt(canvasH.value||0,10);
+    if (!w||!h) { msg.textContent='❌ Inserisci Canvas W/H'; return; }
+    state.canvas.width = w; state.canvas.height = h;
+    initStage(); renderAll();
+    msg.textContent='✅ Canvas aggiornato';
+  });
+
+  // ---- Export ---------------------------------------------------------------
+  exportPNG.onclick = () => {
+    const dataURL = stage.toDataURL({ pixelRatio: 2 });
+    saveAs(dataURL, 'ledwall-mapper.png');
+  };
+  exportSVG.onclick = () => {
+    // Esporta solo layer composizioni+griglia dentro i limiti del canvas
+    const node = stage.toCanvas();
+    // Fallback semplice: raster → PNG già sopra; per SVG possiamo generare uno schematico:
+    const svgParts = [];
+    const cx = padding, cy = padding, cw = state.canvas.width, ch = state.canvas.height;
+    svgParts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${cw}" height="${ch}">`);
+    svgParts.push(`<rect x="0" y="0" width="${cw}" height="${ch}" fill="#0c0c0c" />`);
+    for (const c of state.compositions) {
+      const x = c.x - cx, y = c.y - cy, w = c.cols*c.tileW, h = c.rows*c.tileH;
+      svgParts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#3aa" stroke-dasharray="4,4" />`);
+      for (let xx = c.tileW; xx < w; xx += c.tileW) svgParts.push(`<line x1="${x+xx}" y1="${y}" x2="${x+xx}" y2="${y+h}" stroke="#1e3f3f" stroke-width="1" />`);
+      for (let yy = c.tileH; yy < h; yy += c.tileH) svgParts.push(`<line x1="${x}" y1="${y+yy}" x2="${x+w}" y2="${y+yy}" stroke="#1e3f3f" stroke-width="1" />`);
+      svgParts.push(`<text x="${x+4}" y="${y+14}" fill="#ddd" font-size="12">${c.name} ${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH}</text>`);
+    }
+    svgParts.push(`</svg>`);
+    const blob = new Blob([svgParts.join("")], {type:'image/svg+xml;charset=utf-8'});
+    saveAs(blob, 'ledwall-mapper.svg');
+  };
+  exportJSON.onclick = () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+    saveAs(blob, 'project.json');
+  };
+  exportCSV.onclick = () => {
+    // CSV per tutte le composizioni con coordinate tile
+    const rows = [];
+    for (const comp of state.compositions) {
+      const compW = comp.cols * comp.tileW, compH = comp.rows * comp.tileH;
+      for (let r=0; r<comp.rows; r++) {
+        for (let c=0; c<comp.cols; c++) {
+          const x = comp.x + c*comp.tileW - padding;
+          const y = comp.y + r*comp.tileH - padding;
+          rows.push({
+            projectId: state.projectId,
+            compId: comp.id,
+            compName: comp.name,
+            tileId: `${comp.id}-${r}-${c}`,
+            row: r, col: c,
+            x, y, width: comp.tileW, height: comp.tileH, rotation: 0
+          });
+        }
+      }
+    }
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    saveAs(blob, 'tiles.csv');
+  };
+
+  // ---- Persistenza semplice (LocalStorage) ---------------------------------
+  function saveAutosafe() {
+    localStorage.setItem('ledwall.project', JSON.stringify(state));
+  }
+  saveBtn.onclick = saveAutosafe;
+  loadBtn.onclick = () => {
+    const raw = localStorage.getItem('ledwall.project');
+    if (!raw) { msg.textContent='Nessun salvataggio trovato.'; return; }
+    const data = JSON.parse(raw);
+    Object.assign(state, data);
+    initStage(); renderAll(); refreshList();
+    msg.textContent='✅ Progetto caricato';
+  };
+  clearBtn.onclick = () => {
+    state.projectId = crypto.randomUUID();
+    state.compositions = [];
+    msg.textContent='✅ Nuovo progetto';
+    renderAll(); refreshList(); saveAutosafe();
+  };
+
+  // ---- Hook UI --------------------------------------------------------------
+  addBtn.addEventListener('click', addComposition);
+
+  // ---- Boot -----------------------------------------------------------------
+  initStage();
+  renderAll();
+  refreshList();
+  preset.value = "1920x1080"; preset.dispatchEvent(new Event('change'));
+  canvasW.value = 1920; canvasH.value = 1080;
+})();
+</script>
+</body>
+</html>
