@@ -32,6 +32,7 @@
       overflow: hidden;
       background:#0a0a0a; border:1px solid #222; border-radius:8px; padding:0; position:relative;
       touch-action: none; /* gestiamo pinch/pan manualmente */
+      user-select: none;  /* evita selezioni che bloccano il drag su PC */
     }
 
     @media (max-width: 900px) {
@@ -57,7 +58,7 @@
       <select id="preset">
         <option value="">Preset risoluzione</option>
         <option>1280x720</option>
-        <option>1920x1080</option>
+        <option selected>1920x1080</option>
         <option>2560x1440</option>
         <option>3840x2160</option>
         <option>7680x4320</option>
@@ -224,6 +225,18 @@
   }
   const pxSize = (c)=>({w:c.cols*c.tileW, h:c.rows*c.tileH});
 
+  // ---- Helpers layout -------------------------------------------------------
+  function rightmostBBox() {
+    if (state.compositions.length === 0) return null;
+    let rm = state.compositions[0];
+    let maxX2 = bboxOf(rm).x2;
+    for (const comp of state.compositions) {
+      const b = bboxOf(comp);
+      if (b.x2 > maxX2) { maxX2 = b.x2; rm = comp; }
+    }
+    return bboxOf(rm);
+  }
+
   // ---- Render composizioni --------------------------------------------------
   const groupMap = new Map();
 
@@ -236,13 +249,13 @@
 
   function renderComposition(comp) {
     const b = bboxOf(comp);
-    const group = new Konva.Group({ x: b.x, y: b.y, draggable: !comp.locked, id: comp.id });
+    const group = new Konva.Group({ x: b.x, y: b.y, draggable: !comp.locked, id: comp.id, listening: true });
 
     // Bordi/griglia
     const rect = new Konva.Rect({ x:0, y:0, width:b.w, height:b.h, stroke: comp.id===state.selectedId?'#7fd':'#3aa', strokeWidth: comp.id===state.selectedId?3:2, dash:[4,4] });
     group.add(rect);
-    for (let c=1;c<comp.cols;c++) group.add(new Konva.Line({ points:[c*comp.tileW,0, c*comp.tileW,b.h], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
-    for (let r=1;r<comp.rows;r++) group.add(new Konva.Line({ points:[0,r*comp.tileH, b.w,r*comp.tileH], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
+    for (let c=1;c<comp.cols;c++) group.add(new Konva.Line({ points:[c*comp.tileW,0, c*comp.tileW,b.h], stroke:'#1e3f3f', strokeWidth:1 }));
+    for (let r=1;r<comp.rows;r++) group.add(new Konva.Line({ points:[0,r*comp.tileH, b.w,r*comp.tileH], stroke:'#1e3f3f', strokeWidth:1 }));
 
     // Info top-left
     const size = pxSize(comp);
@@ -253,18 +266,23 @@
     });
     group.add(offText);
 
-    // Nome centrato
+    // Nome centrato e adattivo
+    const fontSize = Math.max(14, Math.min(72, Math.floor(Math.min(b.w, b.h) * 0.18)));
     const nameText = new Konva.Text({
       text: comp.name,
-      fontSize: 14, fontStyle: 'bold', fill:'#eee',
-      x: 0, y: (b.h - 16) / 2, width: b.w, align: 'center'
+      fontSize: fontSize, fontStyle: 'bold', fill:'#eee',
+      x: 0, width: b.w, align: 'center'
     });
+    nameText.y((b.h - nameText.height()) / 2);
     group.add(nameText);
 
-    // Selezione
-    group.on('mousedown touchstart', () => selectComposition(comp.id));
+    // Selezione + avvio drag esplicito (robustezza PC)
+    const startDrag = () => { selectComposition(comp.id); group.startDrag(); };
+    group.on('mousedown', startDrag);
+    group.on('touchstart', () => selectComposition(comp.id));
+    rect.on('mousedown', startDrag);
 
-    // DRAG con vincoli PC/Mobile: limitiamo i movimenti a priori
+    // DRAG con vincoli: limitiamo i movimenti a priori
     group.dragBoundFunc((pos) => {
       const snapped = { x: snap(pos.x), y: snap(pos.y) };
       const moved = { x: snapped.x, y: snapped.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
@@ -278,7 +296,6 @@
       const p = group.position();
       comp.x = snap(p.x); comp.y = snap(p.y);
       offText.text(`${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`);
-      // aggiorna form pos
       posX.value = comp.x - padding; posY.value = comp.y - padding;
       refreshList(); saveAutosafe();
     });
@@ -342,12 +359,19 @@
       sel.onclick = () => selectComposition(c.id);
       lock.onclick = () => { c.locked=!c.locked; renderAll(); refreshList(); saveAutosafe(); };
       dup.onclick = () => {
+        // Duplica e posiziona a destra del riquadro più a destra
+        const bRight = rightmostBBox();
         const nc = structuredClone(c);
-        nc.id = crypto.randomUUID(); nc.name = c.name+' Copy'; nc.x += 20; nc.y += 20;
+        nc.id = crypto.randomUUID(); nc.name = c.name+' Copy';
+        const myW = c.cols*c.tileW; const myH = c.rows*c.tileH;
+        const newX = (bRight ? bRight.x2 : padding) + 0; // pixel successivo, niente margine extra
+        const newY = (bRight ? bRight.y : padding);
+        nc.x = snap(newX); nc.y = snap(newY);
         const b = bboxOf(nc);
-        if (!collidesAny(nc.id, b) && canvasClamp(b)) {
-          state.compositions.push(nc); renderAll(); refreshList(); saveAutosafe();
-        } else msg.textContent = '❌ Sposta o riduci per evitare sovrapposizioni.';
+        if (!canvasClamp(b)) { msg.textContent = '❌ La duplicata sborda fuori dal canvas'; return; }
+        if (collidesAny(nc.id, b)) { msg.textContent = '❌ Sovrapposizione dopo duplicazione'; return; }
+        state.compositions.push(nc); state.selectedId = nc.id;
+        renderAll(); refreshList(); saveAutosafe();
       };
       del.onclick = () => { state.compositions = state.compositions.filter(x=>x.id!==c.id); if (state.selectedId===c.id) state.selectedId=null; renderAll(); refreshList(); saveAutosafe(); };
 
@@ -364,16 +388,10 @@
     const nm = (name.value || "Composizione").trim();
     if (!r||!c||!tw||!th) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
 
-    const margin = 10;
+    const bRight = rightmostBBox();
     let baseX = padding + parseInt(posX.value || 0,10);
     let baseY = padding + parseInt(posY.value || 0,10);
-
-    if (state.compositions.length > 0) {
-      const last = state.compositions[state.compositions.length - 1];
-      const lastBBox = bboxOf(last);
-      baseX = lastBBox.x + lastBBox.w + margin; // a destra della precedente
-      baseY = lastBBox.y;                       // stessa riga
-    }
+    if (bRight) { baseX = bRight.x2 + 0; baseY = bRight.y; }
 
     const comp = {
       id: crypto.randomUUID(),
@@ -561,6 +579,13 @@
   function getTouchDist(e) { const [t1, t2] = e.touches; const dx = t1.clientX - t2.clientX; const dy = t1.clientY - t2.clientY; return Math.hypot(dx, dy); }
   function getTouchCenter(e) { const [t1, t2] = e.touches; return { x: (t1.clientX + t2.clientX)/2, y: (t1.clientY + t2.clientY)/2 }; }
 
+  // ---- Default iniziale 1920x1080 senza dover cliccare "Applica" ----------
+  (function setDefaultCanvas(){
+    const [w,h] = (preset.value||'1920x1080').split('x').map(Number);
+    canvasW.value = w; canvasH.value = h;
+    state.canvas.width = w; state.canvas.height = h;
+  })();
+
   // ---- Resize observer per rifit automatico --------------------------------
   const ro = new ResizeObserver(() => {
     if (!stage) return;
@@ -573,8 +598,7 @@
   initStage();
   renderAll();
   refreshList();
-  preset.value = "1920x1080"; preset.dispatchEvent(new Event('change'));
-  canvasW.value = 1920; canvasH.value = 1080;
+  fitStageToHost();
 })();
 </script>
 </body>
