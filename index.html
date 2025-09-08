@@ -25,14 +25,9 @@
     .tag { font-size:12px; color:#aaa; }
 
     #stageHost {
-      height: 70vh;
-      max-height: 80vh;
-      width: 100%;
-      overflow: hidden;
-      background:#0a0a0a; border:1px solid #222; border-radius:8px; padding:0; position:relative;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-drag: none;
+      height: 70vh; max-height: 80vh; width: 100%;
+      overflow: hidden; background:#0a0a0a; border:1px solid #222; border-radius:8px; padding:0; position:relative;
+      touch-action: none; user-select: none; -webkit-user-drag: none;
     }
 
     @media (max-width: 900px) {
@@ -47,10 +42,7 @@
 <body>
 <header>
   <div class="row">
-    <div style="flex:2">
-      <strong>LEDWall Mapper</strong>
-      <span class="tag">MVP • multi-composizione • no-overlap</span>
-    </div>
+    <div style="flex:2"><strong>LEDWall Mapper</strong> <span class="tag">MVP • multi-composizione • no-overlap</span></div>
     <div class="row" style="flex:3; flex-wrap:wrap; gap:6px">
       <select id="preset">
         <option value="">Preset risoluzione</option>
@@ -180,7 +172,7 @@
     drawBackground();
     stage.draggable(false);
 
-    // Zoom con rotella (tenere premuto Ctrl/Cmd)
+    // Zoom con rotella (Ctrl/Cmd)
     stage.off('wheel');
     stage.on('wheel', (e) => {
       if (!(e.evt.ctrlKey || e.evt.metaKey)) return;
@@ -200,6 +192,13 @@
     layerBg.destroyChildren();
     const bg = new Konva.Rect({ x: padding, y: padding, width: state.canvas.width, height: state.canvas.height, fill: '#0c0c0c', stroke: '#222', strokeWidth: 1 });
     layerBg.add(bg);
+    // Griglia di sfondo ogni 100px
+    for (let x = padding; x <= state.canvas.width + padding; x += 100) {
+      layerBg.add(new Konva.Line({ points:[x,padding, x, state.canvas.height+padding], stroke:'#1a1a1a', strokeWidth:1, listening:false }));
+    }
+    for (let y = padding; y <= state.canvas.height + padding; y += 100) {
+      layerBg.add(new Konva.Line({ points:[padding,y, state.canvas.width+padding, y], stroke:'#1a1a1a', strokeWidth:1, listening:false }));
+    }
     layerBg.draw();
     canvasInfo.textContent = `${state.canvas.width}×${state.canvas.height}px`;
   }
@@ -219,7 +218,6 @@
     return bboxOf(rm);
   }
 
-  // SCAN L→R, T→B: trova il primo buco libero che contenga w×h
   function findFirstFit(w, h){
     const maxX = padding + state.canvas.width - w;
     const maxY = padding + state.canvas.height - h;
@@ -246,39 +244,56 @@
     const b=bboxOf(comp);
     const group=new Konva.Group({x:b.x,y:b.y,draggable:!comp.locked,id:comp.id});
 
-    const rect=new Konva.Rect({x:0,y:0,width:b.w,height:b.h,stroke: state.selectedId===comp.id?'#7fd':'#3aa',strokeWidth: state.selectedId===comp.id?3:2,dash:[4,4]});
+    const rect=new Konva.Rect({x:0,y:0,width:b.w,height:b.h,stroke: state.selectedId===comp.id?'#7fd':'#3aa',strokeWidth: state.selectedId===comp.id?3:2,dash:[4,4], listening:true, hitStrokeWidth: 8});
     group.add(rect);
 
+    // Griglia interna delle mattonelle
+    for (let c=1;c<comp.cols;c++) group.add(new Konva.Line({ points:[c*comp.tileW,0, c*comp.tileW,b.h], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
+    for (let r=1;r<comp.rows;r++) group.add(new Konva.Line({ points:[0,r*comp.tileH, b.w,r*comp.tileH], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
+
     const size=pxSize(comp);
-    const offText=new Konva.Text({x:4,y:4,text:`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`,fontSize:12,fill:'#ddd'});
+    const offText=new Konva.Text({x:4,y:4,text:`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`,fontSize:12,fill:'#ddd', listening:false});
     group.add(offText);
 
     const fontSize=Math.max(16,Math.min(96,Math.floor(Math.min(b.w,b.h)*0.22)));
-    const nameText=new Konva.Text({text:comp.name,fontSize:fontSize,fontStyle:'bold',fill:'#eee',x:4,width:b.w-8,align:'center'});
+    const nameText=new Konva.Text({text:comp.name,fontSize:fontSize,fontStyle:'bold',fill:'#eee',x:4,width:b.w-8,align:'center',listening:false});
     nameText.y((b.h-nameText.height())/2);
     group.add(nameText);
 
-    // Selezione + avvio drag robusto
+    // Selezione + avvio drag
     const startDrag = () => { selectComposition(comp.id); group.startDrag(); };
+    rect.on('pointerdown', startDrag);
+    rect.on('mousedown', startDrag);
     group.on('pointerdown', startDrag);
     group.on('mousedown', startDrag);
 
-    // Drag libero; validazione a fine drag (evita blocchi su Chrome/Win)
-    group.on('dragmove', () => {
-      const p = group.position();
-      offText.text(`${size.w}×${size.h}px • (${Math.round(p.x)-padding},${Math.round(p.y)-padding})`);
+    // Cursor
+    group.on('mouseenter mouseover', () => { stage.container().style.cursor = 'move'; });
+    group.on('mouseleave mouseout', () => { stage.container().style.cursor = 'default'; });
+
+    // Limita solo ai bordi canvas durante il drag
+    group.dragBoundFunc((pos)=>{
+      let nx = pos.x, ny = pos.y;
+      if (nx < padding) nx = padding;
+      if (ny < padding) ny = padding;
+      if (nx + b.w > padding + state.canvas.width) nx = padding + state.canvas.width - b.w;
+      if (ny + b.h > padding + state.canvas.height) ny = padding + state.canvas.height - b.h;
+      offText.text(`${size.w}×${size.h}px • (${Math.round(nx)-padding},${Math.round(ny)-padding})`);
+      return { x: nx, y: ny };
     });
+
+    // A fine drag: blocca se collide, altrimenti salva
     group.on('dragend', () => {
       const p = group.position();
       const proposed = { x: snap(p.x), y: snap(p.y), w:b.w, h:b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-      if (!canvasClamp(proposed) || collidesAny(comp.id, proposed)) {
+      if (collidesAny(comp.id, proposed)) {
         group.position({ x: comp.x, y: comp.y });
+        offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
       } else {
         comp.x = proposed.x; comp.y = proposed.y;
+        offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
       }
-      offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
-      layerComps.batchDraw();
-      refreshList();
+      refreshList(); layerComps.batchDraw(); saveAutosafe();
     });
 
     layerComps.add(group);
@@ -311,7 +326,7 @@
 
   function duplicateComposition(c){
     const w=c.cols*c.tileW, h=c.rows*c.tileH;
-    // tenta a destra del più a destra
+    // tenta a destra del più a destra, poi first-fit
     const right = rightmostBBox();
     let target = right ? { x: right.x2 + 0, y: right.y } : { x: padding, y: padding };
     let b = { x: target.x, y: target.y, w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
@@ -347,6 +362,25 @@
   }
   addBtn.onclick=addComposition;
 
+  updateBtn.onclick = () => {
+    const id = state.selectedId; if (!id) { msg.textContent='Seleziona una composizione.'; return; }
+    const c = state.compositions.find(x=>x.id===id); if (!c) return;
+    const nv = {
+      name: (name.value||c.name).trim(),
+      rows: parseInt(rows.value||c.rows,10),
+      cols: parseInt(cols.value||c.cols,10),
+      tileW: parseInt(tileW.value||c.tileW,10),
+      tileH: parseInt(tileH.value||c.tileH,10),
+      x: padding + parseInt(posX.value||c.x-padding,10),
+      y: padding + parseInt(posY.value||c.y-padding,10),
+      pitch: parseFloat(pitch.value)||null
+    };
+    const proposed = { ...c, ...nv };
+    const b = bboxOf(proposed);
+    if (!canvasClamp(b) || collidesAny(c.id,b)) { msg.textContent='❌ Sovrapposizione o fuori canvas'; return; }
+    Object.assign(c, nv); renderAll(); msg.textContent='✅ Aggiornata';
+  };
+
   // ---- Canvas preset/custom
   preset.addEventListener('change', () => {
     if (!preset.value) return;
@@ -378,6 +412,9 @@
     for (const c of state.compositions) {
       const x = c.x - cx, y = c.y - cy, w = c.cols*c.tileW, h = c.rows*c.tileH;
       svgParts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#3aa" stroke-dasharray="4,4" />`);
+      // griglia interna SVG
+      for (let xx = c.tileW; xx < w; xx += c.tileW) svgParts.push(`<line x1="${x+xx}" y1="${y}" x2="${x+xx}" y2="${y+h}" stroke="#1e3f3f" stroke-width="1" />`);
+      for (let yy = c.tileH; yy < h; yy += c.tileH) svgParts.push(`<line x1="${x}" y1="${y+yy}" x2="${x+w}" y2="${y+yy}" stroke="#1e3f3f" stroke-width="1" />`);
       svgParts.push(`<text x="${x+4}" y="${y+14}" fill="#ddd" font-size="12">${w}×${h}px • (${x},${y})</text>`);
       svgParts.push(`<text x="${x}" y="${y + h/2}" fill="#eee" font-size="14" text-anchor="middle" dominant-baseline="middle" transform="translate(${x + w/2},0)">${c.name}</text>`);
     }
