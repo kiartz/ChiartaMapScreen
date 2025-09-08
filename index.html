@@ -31,7 +31,7 @@
       width: 100%;
       overflow: hidden;
       background:#0a0a0a; border:1px solid #222; border-radius:8px; padding:0; position:relative;
-      touch-action: none; /* ci gestiamo pinch/pan manualmente */
+      touch-action: none; /* gestiamo pinch/pan manualmente */
     }
 
     @media (max-width: 900px) {
@@ -172,7 +172,7 @@
     stage.add(layerBg); stage.add(layerComps);
     drawBackground();
 
-    // Lo stage NON è draggable (così non ruba il drag ai gruppi su iOS)
+    // Lo stage NON è draggable (così non ruba il drag ai gruppi su iOS/PC)
     stage.draggable(false);
 
     // Zoom con rotella su desktop solo con ctrl/cmd
@@ -244,10 +244,11 @@
     for (let c=1;c<comp.cols;c++) group.add(new Konva.Line({ points:[c*comp.tileW,0, c*comp.tileW,b.h], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
     for (let r=1;r<comp.rows;r++) group.add(new Konva.Line({ points:[0,r*comp.tileH, b.w,r*comp.tileH], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
 
-    // Info top-left: dimensioni e offset
+    // Info top-left
     const size = pxSize(comp);
     const offText = new Konva.Text({
-      x: 4, y: 4, text: `${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`,
+      x: 4, y: 4,
+      text: `${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`,
       fontSize: 12, fill:'#ddd'
     });
     group.add(offText);
@@ -260,36 +261,26 @@
     });
     group.add(nameText);
 
-    // Interazioni
+    // Selezione
     group.on('mousedown touchstart', () => selectComposition(comp.id));
 
-    group.on('dragmove', (e) => {
-      const g = e.target;
-      const proposed = { x: snap(g.x()), y: snap(g.y()) };
-      const moved = { x: proposed.x, y: proposed.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-      if (!collidesAny(comp.id, moved) && canvasClamp(moved)) {
-        g.position(proposed);
-        offText.text(`${size.w}×${size.h}px • (${proposed.x - padding},${proposed.y - padding})`);
-        msg.textContent = '';
-      } else {
-        msg.textContent = '❌ Sovrapposizione o fuori dal canvas';
-      }
-      layerComps.batchDraw();
+    // DRAG con vincoli PC/Mobile: limitiamo i movimenti a priori
+    group.dragBoundFunc((pos) => {
+      const snapped = { x: snap(pos.x), y: snap(pos.y) };
+      const moved = { x: snapped.x, y: snapped.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+      if (!canvasClamp(moved)) return group.position();
+      if (collidesAny(comp.id, moved)) return group.position();
+      offText.text(`${size.w}×${size.h}px • (${snapped.x - padding},${snapped.y - padding})`);
+      return snapped;
     });
 
-    group.on('dragend', (e) => {
-      const g = e.target;
-      const proposed = { x: snap(g.x()), y: snap(g.y()) };
-      const moved = { x: proposed.x, y: proposed.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-      if (!collidesAny(comp.id, moved) && canvasClamp(moved)) {
-        comp.x = proposed.x; comp.y = proposed.y;
-        offText.text(`${size.w}×${size.h}px • (${proposed.x - padding},${proposed.y - padding})`);
-        refreshList(); saveAutosafe();
-      } else {
-        g.position({x:comp.x, y:comp.y});
-        offText.text(`${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`);
-        layerComps.draw();
-      }
+    group.on('dragend', () => {
+      const p = group.position();
+      comp.x = snap(p.x); comp.y = snap(p.y);
+      offText.text(`${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`);
+      // aggiorna form pos
+      posX.value = comp.x - padding; posY.value = comp.y - padding;
+      refreshList(); saveAutosafe();
     });
 
     layerComps.add(group);
@@ -370,12 +361,33 @@
   // ---- Creazione ------------------------------------------------------------
   function addComposition() {
     const r = parseInt(rows.value,10), c = parseInt(cols.value,10), tw = parseInt(tileW.value,10), th = parseInt(tileH.value,10);
-    const x = padding + parseInt(posX.value,10), y = padding + parseInt(posY.value,10);
     const nm = (name.value || "Composizione").trim();
     if (!r||!c||!tw||!th) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
-    const comp = { id: crypto.randomUUID(), name: nm, rows:r, cols:c, tileW:tw, tileH:th, x:snap(x), y:snap(y), rotation:0, locked:false, visible:true, pitch: parseFloat(pitch.value)||null };
+
+    const margin = 10;
+    let baseX = padding + parseInt(posX.value || 0,10);
+    let baseY = padding + parseInt(posY.value || 0,10);
+
+    if (state.compositions.length > 0) {
+      const last = state.compositions[state.compositions.length - 1];
+      const lastBBox = bboxOf(last);
+      baseX = lastBBox.x + lastBBox.w + margin; // a destra della precedente
+      baseY = lastBBox.y;                       // stessa riga
+    }
+
+    const comp = {
+      id: crypto.randomUUID(),
+      name: nm,
+      rows: r, cols: c, tileW: tw, tileH: th,
+      x: snap(baseX), y: snap(baseY),
+      rotation: 0, locked: false, visible: true,
+      pitch: parseFloat(pitch.value)||null
+    };
+
     const b = bboxOf(comp);
-    if (collidesAny(comp.id, b) || !canvasClamp(b)) { msg.textContent = '❌ Sovrapposizione o fuori dal canvas'; return; }
+    if (!canvasClamp(b)) { msg.textContent = '❌ La nuova composizione sborda fuori dal canvas'; return; }
+    if (collidesAny(comp.id, b)) { msg.textContent = '❌ Sovrapposizione con una composizione esistente'; return; }
+
     state.compositions.push(comp);
     state.selectedId = comp.id;
     renderAll(); refreshList(); saveAutosafe();
@@ -412,7 +424,6 @@
 
   // ---- Export ---------------------------------------------------------------
   exportPNG.onclick = () => {
-    // render solo l'area del canvas (senza bordi esterni)
     const oldScale = stage.scaleX() || 1, oldPos = stage.position();
     stage.scale({x:1,y:1}); stage.position({x:0,y:0});
     const dataURL = stage.toDataURL({ pixelRatio: 2 });
@@ -521,8 +532,6 @@
   zoom1Btn.onclick = () => { stage.scale({ x:1, y:1 }); stage.position({ x:0, y:0 }); stage.batchDraw(); };
 
   // ---- Pinch-to-zoom & pan con 2 dita (mobile) ------------------------------
-  // 1 dito: drag composizione (gestito dai group draggable)
-  // 2 dita: zoom/pan dello stage
   let lastDist = 0, lastCenter = null, panning = false;
   stage.getContent().addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
@@ -539,9 +548,7 @@
       const center = getTouchCenter(e);
       const oldScale = stage.scaleX() || 1;
       const newScale = oldScale * (dist / (lastDist || dist));
-      // Zoom verso il centro pinch
       zoomAtPointer(newScale, { x: center.x, y: center.y });
-      // Pan in base allo spostamento del centro
       const dx = center.x - lastCenter.x;
       const dy = center.y - lastCenter.y;
       stage.position({ x: stage.x() + dx, y: stage.y() + dy });
@@ -551,16 +558,8 @@
   }, { passive: false });
   stage.getContent().addEventListener('touchend', () => { panning = false; lastDist = 0; lastCenter = null; });
 
-  function getTouchDist(e) {
-    const [t1, t2] = e.touches;
-    const dx = t1.clientX - t2.clientX;
-    const dy = t1.clientY - t2.clientY;
-    return Math.hypot(dx, dy);
-    }
-  function getTouchCenter(e) {
-    const [t1, t2] = e.touches;
-    return { x: (t1.clientX + t2.clientX)/2, y: (t1.clientY + t2.clientY)/2 };
-  }
+  function getTouchDist(e) { const [t1, t2] = e.touches; const dx = t1.clientX - t2.clientX; const dy = t1.clientY - t2.clientY; return Math.hypot(dx, dy); }
+  function getTouchCenter(e) { const [t1, t2] = e.touches; return { x: (t1.clientX + t2.clientX)/2, y: (t1.clientY + t2.clientY)/2 }; }
 
   // ---- Resize observer per rifit automatico --------------------------------
   const ro = new ResizeObserver(() => {
