@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root { --bg:#111; --fg:#eee; --muted:#888; --acc:#3aa; --warn:#c93; }
+    * { box-sizing: border-box; }
     body { margin:0; background:var(--bg); color:var(--fg); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     header, footer { padding:8px 12px; background:#0b0b0b; position:sticky; top:0; z-index:10; }
     main { display:flex; gap:10px; padding:10px; }
@@ -22,8 +23,21 @@
     ul { list-style:none; padding:0; margin:0; }
     li { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px; border-bottom:1px solid #222; }
     .tag { font-size:12px; color:#aaa; }
-    #stageHost { background:#0a0a0a; border:1px solid #222; border-radius:8px; overflow:auto; padding:8px; }
-    #message { color:#ccc; min-height:1.2em; }
+
+    /* Canvas che si adatta allo schermo (mobile friendly) */
+    #stageHost {
+      height: 70vh;
+      max-height: 80vh;
+      width: 100%;
+      overflow: hidden;
+      background:#0a0a0a; border:1px solid #222; border-radius:8px; padding:0; position:relative;
+      touch-action: none; /* ci gestiamo pinch/pan manualmente */
+    }
+
+    @media (max-width: 900px) {
+      main { flex-direction: column; }
+      #left { width: 100%; }
+    }
   </style>
   <!-- Konva (canvas interattivo) -->
   <script src="https://unpkg.com/konva@9/konva.min.js"></script>
@@ -39,7 +53,7 @@
       <strong>LEDWall Mapper</strong>
       <span class="tag">MVP • multi-composizione • no-overlap</span>
     </div>
-    <div class="row" style="flex:3">
+    <div class="row" style="flex:3; flex-wrap:wrap; gap:6px">
       <select id="preset">
         <option value="">Preset risoluzione</option>
         <option>1280x720</option>
@@ -51,6 +65,8 @@
       <input id="canvasW" type="number" min="1" placeholder="Canvas W (px)" />
       <input id="canvasH" type="number" min="1" placeholder="Canvas H (px)" />
       <button id="setCanvas">Applica</button>
+      <button id="fit" class="secondary">Fit</button>
+      <button id="zoom1" class="secondary">100%</button>
       <button id="exportPNG" class="secondary">PNG</button>
       <button id="exportSVG" class="secondary">SVG</button>
       <button id="exportJSON" class="secondary">JSON</button>
@@ -62,7 +78,7 @@
 <main>
   <section id="left">
     <div class="panel">
-      <h3 style="margin:0 0 8px">Nuova Composizione</h3>
+      <h3 style="margin:0 0 8px">Nuova / Modifica Composizione</h3>
       <label>Nome</label><input id="name" type="text" placeholder="Ledwall Main" />
       <div class="row">
         <div><label>Righe (R)</label><input id="rows" type="number" min="1" value="6" /></div>
@@ -80,7 +96,10 @@
         <div><label>Pitch (mm)</label><input id="pitch" type="number" step="0.1" placeholder="opzionale" /></div>
         <div><label>Larghezza fisica (m)</label><input id="widthM" type="text" disabled placeholder="auto" /></div>
       </div>
-      <button id="add">Aggiungi composizione</button>
+      <div class="row">
+        <button id="add">Aggiungi composizione</button>
+        <button id="update" class="secondary">Aggiorna composizione</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -101,19 +120,17 @@
 
   <section id="canvasWrap">
     <div class="panel" style="display:flex; flex-direction:column; gap:8px">
-      <div class="row" style="align-items:center">
+      <div class="row" style="align-items:center; flex-wrap:wrap">
         <div>Canvas: <span id="canvasInfo">–</span></div>
-        <div class="tag">Pan: trascina sfondo • Zoom: ctrl/cmd + rotella</div>
+        <div class="tag">Drag composizioni • Pinch (2 dita) per zoom/pan • Fit per riquadrare</div>
       </div>
-      <div id="stageHost">
-        <!-- Konva Stage verrà inserito qui -->
-      </div>
+      <div id="stageHost"></div>
     </div>
   </section>
 </main>
 
 <footer>
-  <span class="tag">Tip: Le composizioni non possono sovrapporsi. Trascinale: si agganciano a 1px e ai bordi esistenti.</span>
+  <span class="tag">Tip: Le composizioni non possono sovrapporsi. L’offset (X,Y) è riferito al top-left del canvas.</span>
 </footer>
 
 <script>
@@ -135,29 +152,31 @@
   const stageHost = $("stageHost"), canvasInfo = $("canvasInfo"), msg = $("message");
   const name = $("name"), rows = $("rows"), cols = $("cols"), tileW = $("tileW"), tileH = $("tileH"), posX = $("posX"), posY = $("posY");
   const pitch = $("pitch"), widthM = $("widthM");
-  const addBtn = $("add"), list = $("compositions");
+  const addBtn = $("add"), updateBtn = $("update"), list = $("compositions");
   const exportPNG = $("exportPNG"), exportSVG=$("exportSVG"), exportJSON=$("exportJSON"), exportCSV=$("exportCSV");
   const saveBtn=$("save"), loadBtn=$("load"), clearBtn=$("clear");
-
-  // Bottone per aggiornare la composizione selezionata
-  let updateBtn;
-  (function ensureUpdateButton(){
-    updateBtn = document.createElement('button');
-    updateBtn.id = 'update';
-    updateBtn.textContent = 'Aggiorna composizione';
-    updateBtn.className = 'secondary';
-    $("left").querySelector('.panel').appendChild(updateBtn);
-  })();
+  const fitBtn = $("fit"), zoom1Btn=$("zoom1");
 
   // ---- Konva Stage & Layers -------------------------------------------------
-  let stage, layerBg, layerComps; // rimosso layerTiles per evitare “ghost”
+  let stage, layerBg, layerComps;
+  const padding = 10; // bordo canvas nel container Konva
+
   function initStage() {
     stageHost.innerHTML = "";
-    stage = new Konva.Stage({ width: state.canvas.width + 20, height: state.canvas.height + 20, container: "stageHost" });
+    stage = new Konva.Stage({
+      width: stageHost.clientWidth,
+      height: stageHost.clientHeight || 300,
+      container: "stageHost"
+    });
     layerBg = new Konva.Layer(); layerComps = new Konva.Layer();
     stage.add(layerBg); stage.add(layerComps);
     drawBackground();
-    stage.draggable(true);
+
+    // Lo stage NON è draggable (così non ruba il drag ai gruppi su iOS)
+    stage.draggable(false);
+
+    // Zoom con rotella su desktop solo con ctrl/cmd
+    stage.off('wheel');
     stage.on('wheel', (e) => {
       if (!(e.evt.ctrlKey || e.evt.metaKey)) return;
       e.evt.preventDefault();
@@ -166,23 +185,14 @@
       const scaleBy = 1.05;
       const direction = e.evt.deltaY > 0 ? -1 : 1;
       const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-      const mousePointTo = {
-        x: (pointer.x - stage.x()) / oldScale,
-        y: (pointer.y - stage.y()) / oldScale,
-      };
-      stage.scale({ x: newScale, y: newScale });
-      const newPos = {
-        x: pointer.x - mousePointTo.x * newScale,
-        y: pointer.y - mousePointTo.y * newScale,
-      };
-      stage.position(newPos);
-      stage.batchDraw();
+      zoomAtPointer(newScale, pointer);
     });
+
+    fitStageToHost();
   }
 
   function drawBackground() {
     layerBg.destroyChildren();
-    const padding = 10;
     const bg = new Konva.Rect({ x: padding, y: padding, width: state.canvas.width, height: state.canvas.height, fill: '#0c0c0c', stroke: '#222', strokeWidth: 1 });
     layerBg.add(bg);
     for (let x = padding; x <= state.canvas.width + padding; x += 100) {
@@ -196,7 +206,6 @@
   }
 
   // ---- Utility --------------------------------------------------------------
-  const padding = 10; // bordo canvas nel container Konva
   const snapStep = 1;
   const snap = v => Math.round(v / snapStep) * snapStep;
   const bboxOf = (c) => ({ x: c.x, y: c.y, w: c.cols * c.tileW, h: c.rows * c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} });
@@ -216,7 +225,6 @@
   const pxSize = (c)=>({w:c.cols*c.tileW, h:c.rows*c.tileH});
 
   // ---- Render composizioni --------------------------------------------------
-  // Maintains a map id -> group for quick updates/highlight
   const groupMap = new Map();
 
   function renderAll() {
@@ -229,6 +237,7 @@
   function renderComposition(comp) {
     const b = bboxOf(comp);
     const group = new Konva.Group({ x: b.x, y: b.y, draggable: !comp.locked, id: comp.id });
+
     // Bordi/griglia
     const rect = new Konva.Rect({ x:0, y:0, width:b.w, height:b.h, stroke: comp.id===state.selectedId?'#7fd':'#3aa', strokeWidth: comp.id===state.selectedId?3:2, dash:[4,4] });
     group.add(rect);
@@ -243,7 +252,7 @@
     });
     group.add(offText);
 
-    // Nome centrato (orizzontale e verticale)
+    // Nome centrato
     const nameText = new Konva.Text({
       text: comp.name,
       fontSize: 14, fontStyle: 'bold', fill:'#eee',
@@ -260,7 +269,6 @@
       const moved = { x: proposed.x, y: proposed.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
       if (!collidesAny(comp.id, moved) && canvasClamp(moved)) {
         g.position(proposed);
-        // Aggiorna label offset live
         offText.text(`${size.w}×${size.h}px • (${proposed.x - padding},${proposed.y - padding})`);
         msg.textContent = '';
       } else {
@@ -276,10 +284,8 @@
       if (!collidesAny(comp.id, moved) && canvasClamp(moved)) {
         comp.x = proposed.x; comp.y = proposed.y;
         offText.text(`${size.w}×${size.h}px • (${proposed.x - padding},${proposed.y - padding})`);
-        refreshList(); // aggiorna offset in lista
-        saveAutosafe();
+        refreshList(); saveAutosafe();
       } else {
-        // ripristina
         g.position({x:comp.x, y:comp.y});
         offText.text(`${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`);
         layerComps.draw();
@@ -293,9 +299,7 @@
   // ---- Selezione & editing --------------------------------------------------
   function selectComposition(id) {
     state.selectedId = id;
-    // highlight riquadri
     renderAll();
-    // popola form
     const c = state.compositions.find(x => x.id===id);
     if (!c) return;
     name.value = c.name; rows.value = c.rows; cols.value = c.cols; tileW.value = c.tileW; tileH.value = c.tileH;
@@ -309,7 +313,6 @@
     const id = state.selectedId;
     if (!id) { msg.textContent='Seleziona una composizione da aggiornare.'; return; }
     const c = state.compositions.find(x => x.id===id); if (!c) return;
-    // nuovi valori (solo numerici come richiesto)
     const nv = {
       name: (name.value || c.name).trim(),
       rows: parseInt(rows.value||c.rows,10),
@@ -321,12 +324,9 @@
       pitch: parseFloat(pitch.value)||null
     };
     if (!nv.rows||!nv.cols||!nv.tileW||!nv.tileH) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
-    // costruiamo bbox proposto e verifichiamo collisioni
     const proposed = { ...c, ...nv };
     const b = bboxOf(proposed);
     if (collidesAny(c.id, b) || !canvasClamp(b)) { msg.textContent='❌ Sovrapposizione o fuori dal canvas'; return; }
-
-    // applica
     Object.assign(c, nv);
     refreshList(); renderAll(); saveAutosafe();
     msg.textContent = `✅ Aggiornata ${c.name}`;
@@ -406,12 +406,17 @@
     if (!w||!h) { msg.textContent='❌ Inserisci Canvas W/H'; return; }
     state.canvas.width = w; state.canvas.height = h;
     initStage(); renderAll();
+    fitStageToHost();
     msg.textContent='✅ Canvas aggiornato';
   });
 
   // ---- Export ---------------------------------------------------------------
   exportPNG.onclick = () => {
+    // render solo l'area del canvas (senza bordi esterni)
+    const oldScale = stage.scaleX() || 1, oldPos = stage.position();
+    stage.scale({x:1,y:1}); stage.position({x:0,y:0});
     const dataURL = stage.toDataURL({ pixelRatio: 2 });
+    stage.scale({x:oldScale,y:oldScale}); stage.position(oldPos);
     saveAs(dataURL, 'ledwall-mapper.png');
   };
   exportSVG.onclick = () => {
@@ -469,6 +474,7 @@
     const data = JSON.parse(raw);
     Object.assign(state, data);
     initStage(); renderAll(); refreshList();
+    fitStageToHost();
     msg.textContent='✅ Progetto caricato';
   };
   clearBtn.onclick = () => {
@@ -482,6 +488,87 @@
   // ---- Hook UI --------------------------------------------------------------
   addBtn.addEventListener('click', addComposition);
   updateBtn.addEventListener('click', tryApplyUpdate);
+
+  // ---- Fit & Zoom helpers ---------------------------------------------------
+  function fitStageToHost() {
+    const hostRect = stageHost.getBoundingClientRect();
+    const targetW = state.canvas.width + 20;
+    const targetH = state.canvas.height + 20;
+    const sx = hostRect.width / targetW;
+    const sy = (hostRect.height || 1) / targetH;
+    const s = Math.min(sx, sy, 1); // non superare 100% in auto
+    stage.scale({ x: s, y: s });
+    const offsetX = (hostRect.width - targetW * s) / 2;
+    const offsetY = (hostRect.height - targetH * s) / 2;
+    stage.position({ x: offsetX, y: offsetY });
+    stage.batchDraw();
+  }
+  function zoomAtPointer(newScale, pointer) {
+    const oldScale = stage.scaleX() || 1;
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+    stage.scale({ x: newScale, y: newScale });
+    const newPos = {
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    };
+    stage.position(newPos);
+    stage.batchDraw();
+  }
+  fitBtn.onclick = fitStageToHost;
+  zoom1Btn.onclick = () => { stage.scale({ x:1, y:1 }); stage.position({ x:0, y:0 }); stage.batchDraw(); };
+
+  // ---- Pinch-to-zoom & pan con 2 dita (mobile) ------------------------------
+  // 1 dito: drag composizione (gestito dai group draggable)
+  // 2 dita: zoom/pan dello stage
+  let lastDist = 0, lastCenter = null, panning = false;
+  stage.getContent().addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      lastDist = getTouchDist(e);
+      lastCenter = getTouchCenter(e);
+      panning = true;
+    }
+  }, { passive: false });
+  stage.getContent().addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && panning) {
+      e.preventDefault();
+      const dist = getTouchDist(e);
+      const center = getTouchCenter(e);
+      const oldScale = stage.scaleX() || 1;
+      const newScale = oldScale * (dist / (lastDist || dist));
+      // Zoom verso il centro pinch
+      zoomAtPointer(newScale, { x: center.x, y: center.y });
+      // Pan in base allo spostamento del centro
+      const dx = center.x - lastCenter.x;
+      const dy = center.y - lastCenter.y;
+      stage.position({ x: stage.x() + dx, y: stage.y() + dy });
+      stage.batchDraw();
+      lastDist = dist; lastCenter = center;
+    }
+  }, { passive: false });
+  stage.getContent().addEventListener('touchend', () => { panning = false; lastDist = 0; lastCenter = null; });
+
+  function getTouchDist(e) {
+    const [t1, t2] = e.touches;
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.hypot(dx, dy);
+    }
+  function getTouchCenter(e) {
+    const [t1, t2] = e.touches;
+    return { x: (t1.clientX + t2.clientX)/2, y: (t1.clientY + t2.clientY)/2 };
+  }
+
+  // ---- Resize observer per rifit automatico --------------------------------
+  const ro = new ResizeObserver(() => {
+    if (!stage) return;
+    stage.size({ width: stageHost.clientWidth, height: stageHost.clientHeight || 300 });
+    fitStageToHost();
+  });
+  ro.observe(stageHost);
 
   // ---- Boot -----------------------------------------------------------------
   initStage();
