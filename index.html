@@ -11,7 +11,7 @@
     header, footer { padding:8px 12px; background:#0b0b0b; position:sticky; top:0; z-index:10; }
     main { display:flex; gap:10px; padding:10px; }
     .panel { background:#151515; border:1px solid #222; border-radius:8px; padding:10px; }
-    #left { width:320px; display:flex; flex-direction:column; gap:10px; }
+    #left { width:340px; display:flex; flex-direction:column; gap:10px; }
     #canvasWrap { flex:1; display:flex; flex-direction:column; gap:8px; min-width:300px; }
     label { display:block; margin:6px 0 2px; color:#ccc; }
     input[type="number"], input[type="text"], select { width:100%; padding:6px; background:#0f0f0f; color:#fff; border:1px solid #333; border-radius:6px; }
@@ -24,15 +24,14 @@
     li { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px; border-bottom:1px solid #222; }
     .tag { font-size:12px; color:#aaa; }
 
-    /* Canvas che si adatta allo schermo (mobile/desktop friendly) */
     #stageHost {
       height: 70vh;
       max-height: 80vh;
       width: 100%;
       overflow: hidden;
       background:#0a0a0a; border:1px solid #222; border-radius:8px; padding:0; position:relative;
-      touch-action: none; /* gestiamo pinch/pan manualmente */
-      user-select: none;  /* evita selezioni che bloccano il drag su PC */
+      touch-action: none;
+      user-select: none;
       -webkit-user-drag: none;
     }
 
@@ -41,11 +40,8 @@
       #left { width: 100%; }
     }
   </style>
-  <!-- Konva (canvas interattivo) -->
   <script src="https://unpkg.com/konva@9/konva.min.js"></script>
-  <!-- PapaParse (CSV) -->
   <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-  <!-- FileSaver (download) -->
   <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 </head>
 <body>
@@ -91,8 +87,8 @@
         <div><label>Tile H (px)</label><input id="tileH" type="number" min="1" value="128" /></div>
       </div>
       <div class="row">
-        <div><label>Pos X</label><input id="posX" type="number" value="50" /></div>
-        <div><label>Pos Y</label><input id="posY" type="number" value="50" /></div>
+        <div><label>Pos X</label><input id="posX" type="number" value="0" /></div>
+        <div><label>Pos Y</label><input id="posY" type="number" value="0" /></div>
       </div>
       <div class="row">
         <div><label>Pitch (mm)</label><input id="pitch" type="number" step="0.1" placeholder="opzionale" /></div>
@@ -137,17 +133,17 @@
 
 <script>
 (() => {
-  // ---- Stato progetto -------------------------------------------------------
+  // ---- Stato progetto
   const state = {
     projectId: crypto.randomUUID(),
     name: "Project",
     canvas: { width: 1920, height: 1080, background: "#111111" },
-    compositions: [], // {id,name,rows,cols,tileW,tileH,x,y,rotation,locked,visible,pitch}
+    compositions: [],
     selectedId: null,
     version: 1
   };
 
-  // ---- UI refs --------------------------------------------------------------
+  // ---- UI refs
   const $ = id => document.getElementById(id);
   const preset = $("preset"), canvasW = $("canvasW"), canvasH = $("canvasH");
   const setCanvasBtn = $("setCanvas");
@@ -159,11 +155,11 @@
   const saveBtn=$("save"), loadBtn=$("load"), clearBtn=$("clear");
   const fitBtn = $("fit"), zoom1Btn=$("zoom1");
 
-  // ---- Konva Stage & Layers -------------------------------------------------
+  // ---- Stage & layers
   let stage, layerBg, layerComps;
   const padding = 10; // bordo canvas nel container Konva
 
-  // ---- Default iniziale 1920x1080 e preset selezionato, PRIMA di creare lo stage
+  // Default 1920x1080 e input valorizzati PRIMA di creare lo stage
   (function setDefaultCanvas(){
     const [w,h] = '1920x1080'.split('x').map(Number);
     preset.value = '1920x1080';
@@ -178,15 +174,13 @@
       height: stageHost.clientHeight || 300,
       container: "stageHost"
     });
-    stage.dragDistance(0); // drag immediato su PC
+    stage.dragDistance(0); // drag immediato
     layerBg = new Konva.Layer(); layerComps = new Konva.Layer();
     stage.add(layerBg); stage.add(layerComps);
     drawBackground();
-
-    // Lo stage NON è draggable (così non ruba il drag ai gruppi su iOS/PC)
     stage.draggable(false);
 
-    // Zoom con rotella su desktop solo con ctrl/cmd
+    // Zoom con rotella (tenere premuto Ctrl/Cmd)
     stage.off('wheel');
     stage.on('wheel', (e) => {
       if (!(e.evt.ctrlKey || e.evt.metaKey)) return;
@@ -206,252 +200,154 @@
     layerBg.destroyChildren();
     const bg = new Konva.Rect({ x: padding, y: padding, width: state.canvas.width, height: state.canvas.height, fill: '#0c0c0c', stroke: '#222', strokeWidth: 1 });
     layerBg.add(bg);
-    for (let x = padding; x <= state.canvas.width + padding; x += 100) {
-      layerBg.add(new Konva.Line({ points:[x,padding, x, state.canvas.height+padding], stroke:'#1a1a1a', strokeWidth:1 }));
-    }
-    for (let y = padding; y <= state.canvas.height + padding; y += 100) {
-      layerBg.add(new Konva.Line({ points:[padding,y, state.canvas.width+padding, y], stroke:'#1a1a1a', strokeWidth:1 }));
-    }
     layerBg.draw();
     canvasInfo.textContent = `${state.canvas.width}×${state.canvas.height}px`;
   }
 
-  // ---- Utility --------------------------------------------------------------
-  const snapStep = 1;
-  const snap = v => Math.round(v / snapStep) * snapStep;
-  const bboxOf = (c) => ({ x: c.x, y: c.y, w: c.cols * c.tileW, h: c.rows * c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} });
-  const overlap = (a, b) => !(a.x2 <= b.x || a.x >= b.x2 || a.y2 <= b.y || a.y >= b.y2);
-  function collidesAny(id, movedBBox) {
-    return state.compositions.some(c => c.id !== id && overlap(movedBBox, bboxOf(c)));
-  }
-  function canvasClamp(b) {
-    const cx1 = padding, cy1 = padding, cx2 = padding + state.canvas.width, cy2 = padding + state.canvas.height;
-    return b.x >= cx1 && b.y >= cy1 && b.x2 <= cx2 && b.y2 <= cy2;
-  }
-  function physicalWidthMeters(comp) {
-    if (!comp.pitch) return null;
-    const pixelsWide = comp.cols * comp.tileW;
-    return (pixelsWide * comp.pitch) / 1_000_000; // mm -> m
-  }
-  const pxSize = (c)=>({w:c.cols*c.tileW, h:c.rows*c.tileH});
+  // ---- Utility
+  const snap = v => Math.round(v);
+  const bboxOf = (c) => ({ x: c.x, y: c.y, w: c.cols*c.tileW, h: c.rows*c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} });
+  const overlap = (a,b)=>!(a.x2<=b.x||a.x>=b.x2||a.y2<=b.y||a.y>=b.y2);
+  function collidesAny(id,b){return state.compositions.some(c=>c.id!==id&&overlap(b,bboxOf(c)));}
+  function canvasClamp(b){return b.x>=padding&&b.y>=padding&&b.x2<=padding+state.canvas.width&&b.y2<=padding+state.canvas.height;}
+  const pxSize = (c)=>({w:c.cols*c.tileW,h:c.rows*c.tileH});
 
-  // Trova il primo spazio libero (scan L→R, Top→Bottom)
-  function findFirstFit(w, h, avoidId = null) {
+  function rightmostBBox(){
+    if (state.compositions.length===0) return null;
+    let rm = state.compositions[0]; let max = bboxOf(rm).x2;
+    for (const c of state.compositions){ const b=bboxOf(c); if (b.x2>max){max=b.x2; rm=c;} }
+    return bboxOf(rm);
+  }
+
+  // SCAN L→R, T→B: trova il primo buco libero che contenga w×h
+  function findFirstFit(w, h){
     const maxX = padding + state.canvas.width - w;
     const maxY = padding + state.canvas.height - h;
-    for (let y = padding; y <= maxY; y++) {
-      for (let x = padding; x <= maxX; x++) {
+    for (let y = padding; y <= maxY; y++){
+      for (let x = padding; x <= maxX; x++){
         const b = { x, y, w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
         if (!canvasClamp(b)) continue;
-        const hits = state.compositions.some(c => (avoidId? c.id!==avoidId : true) && overlap(b, bboxOf(c)));
+        const hits = state.compositions.some(c => overlap(b, bboxOf(c)));
         if (!hits) return { x, y };
       }
     }
     return null;
   }
 
-  // ---- Helpers layout -------------------------------------------------------
-  function rightmostBBox() {
-    if (state.compositions.length === 0) return null;
-    let rm = state.compositions[0];
-    let maxX2 = bboxOf(rm).x2;
-    for (const comp of state.compositions) {
-      const b = bboxOf(comp);
-      if (b.x2 > maxX2) { maxX2 = b.x2; rm = comp; }
-    }
-    return bboxOf(rm);
-  }
-
-  // ---- Render composizioni --------------------------------------------------
-  const groupMap = new Map();
-
-  function renderAll() {
-    groupMap.clear();
+  // ---- Render composizioni
+  function renderAll(){
     layerComps.destroyChildren();
-    state.compositions.forEach(comp => renderComposition(comp));
+    for (const c of state.compositions) renderComposition(c);
     layerComps.draw();
+    refreshList();
   }
 
-  function renderComposition(comp) {
-    const b = bboxOf(comp);
-    const group = new Konva.Group({ x: b.x, y: b.y, draggable: !comp.locked, id: comp.id, listening: true });
+  function renderComposition(comp){
+    const b=bboxOf(comp);
+    const group=new Konva.Group({x:b.x,y:b.y,draggable:!comp.locked,id:comp.id});
 
-    // Bordi/griglia
-    const rect = new Konva.Rect({ x:0, y:0, width:b.w, height:b.h, stroke: comp.id===state.selectedId?'#7fd':'#3aa', strokeWidth: comp.id===state.selectedId?3:2, dash:[4,4] });
+    const rect=new Konva.Rect({x:0,y:0,width:b.w,height:b.h,stroke: state.selectedId===comp.id?'#7fd':'#3aa',strokeWidth: state.selectedId===comp.id?3:2,dash:[4,4]});
     group.add(rect);
-    for (let c=1;c<comp.cols;c++) group.add(new Konva.Line({ points:[c*comp.tileW,0, c*comp.tileW,b.h], stroke:'#1e3f3f', strokeWidth:1 }));
-    for (let r=1;r<comp.rows;r++) group.add(new Konva.Line({ points:[0,r*comp.tileH, b.w,r*comp.tileH], stroke:'#1e3f3f', strokeWidth:1 }));
 
-    // Info top-left
-    const size = pxSize(comp);
-    const offText = new Konva.Text({
-      x: 4, y: 4,
-      text: `${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`,
-      fontSize: 12, fill:'#ddd'
-    });
+    const size=pxSize(comp);
+    const offText=new Konva.Text({x:4,y:4,text:`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`,fontSize:12,fill:'#ddd'});
     group.add(offText);
 
-    // Nome centrato e adattivo
-    const fontSize = Math.max(16, Math.min(96, Math.floor(Math.min(b.w, b.h) * 0.22)));
-    const nameText = new Konva.Text({
-      text: comp.name,
-      fontSize: fontSize, fontStyle: 'bold', fill:'#eee',
-      x: 4, width: b.w-8, align: 'center', listening:false
-    });
-    nameText.y((b.h - nameText.height()) / 2);
+    const fontSize=Math.max(16,Math.min(96,Math.floor(Math.min(b.w,b.h)*0.22)));
+    const nameText=new Konva.Text({text:comp.name,fontSize:fontSize,fontStyle:'bold',fill:'#eee',x:4,width:b.w-8,align:'center'});
+    nameText.y((b.h-nameText.height())/2);
     group.add(nameText);
 
-    // Selezione + avvio drag esplicito (robustezza PC)
+    // Selezione + avvio drag robusto
     const startDrag = () => { selectComposition(comp.id); group.startDrag(); };
-    group.on('mousedown', startDrag);
     group.on('pointerdown', startDrag);
-    group.on('touchstart', () => selectComposition(comp.id));
-    rect.on('mousedown', startDrag);
-    rect.on('pointerdown', startDrag);
-    group.on('mouseover', () => { stage.container().style.cursor = 'move'; });
-    group.on('mouseout', () => { stage.container().style.cursor = 'default'; });
+    group.on('mousedown', startDrag);
 
-    // DRAG con vincoli: limitiamo i movimenti a priori
-    group.dragBoundFunc((pos) => {
-      const snapped = { x: snap(pos.x), y: snap(pos.y) };
-      const moved = { x: snapped.x, y: snapped.y, w: b.w, h: b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-      if (!canvasClamp(moved)) return group.position();
-      if (collidesAny(comp.id, moved)) return group.position();
-      offText.text(`${size.w}×${size.h}px • (${snapped.x - padding},${snapped.y - padding})`);
-      return snapped;
+    // Drag libero; validazione a fine drag (evita blocchi su Chrome/Win)
+    group.on('dragmove', () => {
+      const p = group.position();
+      offText.text(`${size.w}×${size.h}px • (${Math.round(p.x)-padding},${Math.round(p.y)-padding})`);
     });
-
     group.on('dragend', () => {
       const p = group.position();
-      comp.x = snap(p.x); comp.y = snap(p.y);
-      offText.text(`${size.w}×${size.h}px • (${comp.x - padding},${comp.y - padding})`);
-      posX.value = comp.x - padding; posY.value = comp.y - padding;
-      refreshList(); saveAutosafe();
+      const proposed = { x: snap(p.x), y: snap(p.y), w:b.w, h:b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+      if (!canvasClamp(proposed) || collidesAny(comp.id, proposed)) {
+        group.position({ x: comp.x, y: comp.y });
+      } else {
+        comp.x = proposed.x; comp.y = proposed.y;
+      }
+      offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
+      layerComps.batchDraw();
+      refreshList();
     });
 
     layerComps.add(group);
-    groupMap.set(comp.id, group);
   }
 
-  // ---- Selezione & editing --------------------------------------------------
-  function selectComposition(id) {
-    state.selectedId = id;
-    renderAll();
-    const c = state.compositions.find(x => x.id===id);
-    if (!c) return;
-    name.value = c.name; rows.value = c.rows; cols.value = c.cols; tileW.value = c.tileW; tileH.value = c.tileH;
-    posX.value = c.x - padding; posY.value = c.y - padding;
-    pitch.value = c.pitch ?? '';
-    updatePhysicalWidthHint();
-    msg.textContent = `✳️ Selezionata: ${c.name}`;
-  }
+  // ---- Selezione & lista
+  function selectComposition(id){ state.selectedId=id; renderAll(); }
 
-  function tryApplyUpdate() {
-    const id = state.selectedId;
-    if (!id) { msg.textContent='Seleziona una composizione da aggiornare.'; return; }
-    const c = state.compositions.find(x => x.id===id); if (!c) return;
-    const nv = {
-      name: (name.value || c.name).trim(),
-      rows: parseInt(rows.value||c.rows,10),
-      cols: parseInt(cols.value||c.cols,10),
-      tileW: parseInt(tileW.value||c.tileW,10),
-      tileH: parseInt(tileH.value||c.tileH,10),
-      x: padding + parseInt(posX.value|| (c.x-padding),10),
-      y: padding + parseInt(posY.value|| (c.y-padding),10),
-      pitch: parseFloat(pitch.value)||null
-    };
-    if (!nv.rows||!nv.cols||!nv.tileW||!nv.tileH) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
-    const proposed = { ...c, ...nv };
-    const b = bboxOf(proposed);
-    if (collidesAny(c.id, b) || !canvasClamp(b)) { msg.textContent='❌ Sovrapposizione o fuori dal canvas'; return; }
-    Object.assign(c, nv);
-    refreshList(); renderAll(); saveAutosafe();
-    msg.textContent = `✅ Aggiornata ${c.name}`;
-  }
+  function refreshList(){
+    list.innerHTML = '';
+    for (const c of state.compositions){
+      const li=document.createElement('li');
+      const left=document.createElement('div');
+      const size=pxSize(c);
+      left.innerHTML=`<strong style="cursor:pointer">${c.name}</strong>
+        <div class="tag">${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH}px — ${size.w}×${size.h}px — pos (${c.x-padding},${c.y-padding})</div>`;
+      left.querySelector('strong').onclick=()=>selectComposition(c.id);
 
-  // ---- Lista composizioni (sidebar) ----------------------------------------
-  function refreshList() {
-    list.innerHTML = "";
-    for (const c of state.compositions) {
-      const li = document.createElement('li');
-      const left = document.createElement('div');
-      const size = pxSize(c);
-      left.innerHTML = `<strong style="cursor:pointer">${c.name}</strong>
-        <div class="tag">${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH}px — ${size.w}×${size.h}px — pos (${c.x - padding},${c.y - padding})${c.pitch?` • ~${physicalWidthMeters(c).toFixed(2)} m`:''}</div>`;
-      const right = document.createElement('div');
-      const sel = document.createElement('button'); sel.textContent = 'Seleziona'; sel.className='secondary';
-      const lock = document.createElement('button'); lock.textContent = c.locked?'Unlock':'Lock'; lock.className='secondary';
-      const dup = document.createElement('button'); dup.textContent = 'Duplica'; dup.className='secondary';
-      const del = document.createElement('button'); del.textContent = 'Elimina'; del.className='warn';
+      const right=document.createElement('div');
+      const btnSel=document.createElement('button'); btnSel.textContent='Seleziona'; btnSel.className='secondary'; btnSel.onclick=()=>selectComposition(c.id);
+      const btnDup=document.createElement('button'); btnDup.textContent='Duplica'; btnDup.className='secondary'; btnDup.onclick=()=>duplicateComposition(c);
+      const btnDel=document.createElement('button'); btnDel.textContent='Elimina'; btnDel.className='warn'; btnDel.onclick=()=>{ state.compositions = state.compositions.filter(x=>x.id!==c.id); if (state.selectedId===c.id) state.selectedId=null; renderAll(); };
+      right.append(btnSel, btnDup, btnDel);
 
-      left.querySelector('strong').onclick = () => selectComposition(c.id);
-      sel.onclick = () => selectComposition(c.id);
-      lock.onclick = () => { c.locked=!c.locked; renderAll(); refreshList(); saveAutosafe(); };
-      dup.onclick = () => {
-        // Duplica → a destra del più a destra, altrimenti trova primo spazio libero
-        const nc = structuredClone(c);
-        nc.id = crypto.randomUUID(); nc.name = c.name+' Copy';
-        const w = c.cols*c.tileW, h = c.rows*c.tileH;
-        const bRight = rightmostBBox();
-        let target = bRight ? { x: bRight.x2 + 0, y: bRight.y } : { x: padding, y: padding };
-        let b = { x: target.x, y: target.y, w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-        if (!canvasClamp(b) || collidesAny(nc.id, b)) {
-          const fit = findFirstFit(w, h);
-          if (!fit) { msg.textContent = '❌ Nessuno spazio libero nel canvas'; return; }
-          target = fit; b = { x: fit.x, y: fit.y, w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-        }
-        nc.x = target.x; nc.y = target.y;
-        state.compositions.push(nc); state.selectedId = nc.id;
-        renderAll(); refreshList(); saveAutosafe();
-      };
-      del.onclick = () => { state.compositions = state.compositions.filter(x=>x.id!==c.id); if (state.selectedId===c.id) state.selectedId=null; renderAll(); refreshList(); saveAutosafe(); };
-
-      right.append(sel, lock, dup, del);
-      li.append(left, right);
+      li.append(left,right);
       if (state.selectedId===c.id) li.style.outline='2px solid #3aa';
       list.append(li);
     }
   }
 
-  // ---- Creazione ------------------------------------------------------------
-  function addComposition() {
-    const r = parseInt(rows.value,10), c = parseInt(cols.value,10), tw = parseInt(tileW.value,10), th = parseInt(tileH.value,10);
-    const nm = (name.value || "Composizione").trim();
-    if (!r||!c||!tw||!th) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
-
-    const w = c*tw, h = r*th;
-    const bRight = rightmostBBox();
-    let base = bRight ? { x: bRight.x2 + 0, y: bRight.y } : { x: padding + parseInt(posX.value||0,10), y: padding + parseInt(posY.value||0,10) };
-    let b = { x: snap(base.x), y: snap(base.y), w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-
+  function duplicateComposition(c){
+    const w=c.cols*c.tileW, h=c.rows*c.tileH;
+    // tenta a destra del più a destra
+    const right = rightmostBBox();
+    let target = right ? { x: right.x2 + 0, y: right.y } : { x: padding, y: padding };
+    let b = { x: target.x, y: target.y, w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
     if (!canvasClamp(b) || collidesAny('new', b)) {
       const fit = findFirstFit(w, h);
-      if (!fit) { msg.textContent = '❌ Nessuno spazio libero nel canvas'; return; }
+      if (!fit) { msg.textContent='❌ Nessuno spazio libero nel canvas'; return; }
+      b.x = fit.x; b.y = fit.y;
+    }
+    const nc = { ...structuredClone(c), id: crypto.randomUUID(), name: c.name+" Copy", x:b.x, y:b.y };
+    state.compositions.push(nc); state.selectedId = nc.id; renderAll();
+  }
+
+  // ---- Create / Update
+  function addComposition(){
+    const r=parseInt(rows.value,10), c=parseInt(cols.value,10), tw=parseInt(tileW.value,10), th=parseInt(tileH.value,10);
+    const nm=(name.value||"Composizione").trim();
+    if(!r||!c||!tw||!th){msg.textContent='❌ R,C,tileW,tileH richiesti';return;}
+    const w=c*tw, h=r*th;
+
+    // propone a destra del più a destra; se non entra o collide, usa first-fit
+    const right = rightmostBBox();
+    let base = right ? { x: right.x2 + 0, y: right.y } : { x: padding + parseInt(posX.value||0,10), y: padding + parseInt(posY.value||0,10) };
+    let b = { x: snap(base.x), y: snap(base.y), w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+    if (!canvasClamp(b) || collidesAny('new', b)) {
+      const fit = findFirstFit(w, h);
+      if (!fit){ msg.textContent='❌ Nessuno spazio libero nel canvas'; return; }
       b.x = fit.x; b.y = fit.y;
     }
 
-    const comp = { id: crypto.randomUUID(), name: nm, rows:r, cols:c, tileW:tw, tileH:th, x:b.x, y:b.y, rotation:0, locked:false, visible:true, pitch: parseFloat(pitch.value)||null };
-
-    state.compositions.push(comp);
-    state.selectedId = comp.id;
-    renderAll(); refreshList(); saveAutosafe();
-    updatePhysicalWidthHint();
-    msg.textContent = `✅ Aggiunta ${comp.name}`;
+    const comp={ id: crypto.randomUUID(), name:nm, rows:r, cols:c, tileW:tw, tileH:th, x:b.x, y:b.y, rotation:0, locked:false, visible:true, pitch: parseFloat(pitch.value)||null };
+    state.compositions.push(comp); state.selectedId = comp.id; renderAll();
+    msg.textContent=`✅ Aggiunta ${comp.name}`;
   }
+  addBtn.onclick=addComposition;
 
-  function updatePhysicalWidthHint() {
-    const pitchVal = parseFloat(pitch.value);
-    const c = { cols: parseInt(cols.value||0,10), tileW: parseInt(tileW.value||0,10), pitch:pitchVal };
-    if (pitchVal && c.cols && c.tileW) {
-      const px = c.cols * c.tileW;
-      widthM.value = ((px * pitchVal)/1_000_000).toFixed(2);
-    } else widthM.value = '';
-  }
-  pitch.addEventListener('input', updatePhysicalWidthHint);
-  cols.addEventListener('input', updatePhysicalWidthHint);
-  tileW.addEventListener('input', updatePhysicalWidthHint);
-
-  // ---- Canvas preset/custom -------------------------------------------------
+  // ---- Canvas preset/custom
   preset.addEventListener('change', () => {
     if (!preset.value) return;
     const [w,h] = preset.value.split('x').map(Number);
@@ -466,7 +362,7 @@
     msg.textContent='✅ Canvas aggiornato';
   });
 
-  // ---- Export ---------------------------------------------------------------
+  // ---- Export (come prima)
   exportPNG.onclick = () => {
     const oldScale = stage.scaleX() || 1, oldPos = stage.position();
     stage.scale({x:1,y:1}); stage.position({x:0,y:0});
@@ -482,8 +378,6 @@
     for (const c of state.compositions) {
       const x = c.x - cx, y = c.y - cy, w = c.cols*c.tileW, h = c.rows*c.tileH;
       svgParts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#3aa" stroke-dasharray="4,4" />`);
-      for (let xx = c.tileW; xx < w; xx += c.tileW) svgParts.push(`<line x1="${x+xx}" y1="${y}" x2="${x+xx}" y2="${y+h}" stroke="#1e3f3f" stroke-width="1" />`);
-      for (let yy = c.tileH; yy < h; yy += c.tileH) svgParts.push(`<line x1="${x}" y1="${y+yy}" x2="${x+w}" y2="${y+yy}" stroke="#1e3f3f" stroke-width="1" />`);
       svgParts.push(`<text x="${x+4}" y="${y+14}" fill="#ddd" font-size="12">${w}×${h}px • (${x},${y})</text>`);
       svgParts.push(`<text x="${x}" y="${y + h/2}" fill="#eee" font-size="14" text-anchor="middle" dominant-baseline="middle" transform="translate(${x + w/2},0)">${c.name}</text>`);
     }
@@ -502,14 +396,7 @@
         for (let c=0; c<comp.cols; c++) {
           const x = comp.x + c*comp.tileW - padding;
           const y = comp.y + r*comp.tileH - padding;
-          rows.push({
-            projectId: state.projectId,
-            compId: comp.id,
-            compName: comp.name,
-            tileId: `${comp.id}-${r}-${c}`,
-            row: r, col: c,
-            x, y, width: comp.tileW, height: comp.tileH, rotation: 0
-          });
+          rows.push({ projectId: state.projectId, compId: comp.id, compName: comp.name, tileId: `${comp.id}-${r}-${c}`, row: r, col: c, x, y, width: comp.tileW, height: comp.tileH, rotation: 0 });
         }
       }
     }
@@ -518,106 +405,48 @@
     saveAs(blob, 'tiles.csv');
   };
 
-  // ---- Persistenza semplice (LocalStorage) ---------------------------------
-  function saveAutosafe() {
-    localStorage.setItem('ledwall.project', JSON.stringify(state));
-  }
+  // ---- Persistenza (localStorage)
+  function saveAutosafe() { localStorage.setItem('ledwall.project', JSON.stringify(state)); }
   saveBtn.onclick = saveAutosafe;
   loadBtn.onclick = () => {
     const raw = localStorage.getItem('ledwall.project');
     if (!raw) { msg.textContent='Nessun salvataggio trovato.'; return; }
     const data = JSON.parse(raw);
     Object.assign(state, data);
-    initStage(); renderAll(); refreshList();
-    fitStageToHost();
+    initStage(); renderAll(); fitStageToHost();
     msg.textContent='✅ Progetto caricato';
   };
   clearBtn.onclick = () => {
-    state.projectId = crypto.randomUUID();
-    state.compositions = [];
-    state.selectedId = null;
-    msg.textContent = '✅ Nuovo progetto';
-    renderAll(); refreshList(); saveAutosafe();
+    state.projectId = crypto.randomUUID(); state.compositions = []; state.selectedId = null;
+    renderAll(); saveAutosafe(); msg.textContent='✅ Nuovo progetto';
   };
 
-  // ---- Hook UI --------------------------------------------------------------
-  addBtn.addEventListener('click', addComposition);
-  updateBtn.addEventListener('click', tryApplyUpdate);
-
-  // ---- Fit & Zoom helpers ---------------------------------------------------
-  function fitStageToHost() {
-    const hostRect = stageHost.getBoundingClientRect();
-    const targetW = state.canvas.width + 20;
-    const targetH = state.canvas.height + 20;
-    const sx = hostRect.width / targetW;
-    const sy = (hostRect.height || 1) / targetH;
-    const s = Math.min(sx, sy, 1); // non superare 100% in auto
-    stage.scale({ x: s, y: s });
-    const offsetX = (hostRect.width - targetW * s) / 2;
-    const offsetY = (hostRect.height - targetH * s) / 2;
-    stage.position({ x: offsetX, y: offsetY });
+  // ---- Fit & zoom helpers
+  function fitStageToHost(){
+    const hostRect=stageHost.getBoundingClientRect();
+    const targetW=state.canvas.width+20; const targetH=state.canvas.height+20;
+    const sx=hostRect.width/targetW; const sy=(hostRect.height||1)/targetH;
+    const s=Math.min(sx,sy,1);
+    stage.scale({x:s,y:s});
+    const offsetX=(hostRect.width-targetW*s)/2; const offsetY=(hostRect.height-targetH*s)/2;
+    stage.position({x:offsetX,y:offsetY});
     stage.batchDraw();
   }
-  function zoomAtPointer(newScale, pointer) {
-    const oldScale = stage.scaleX() || 1;
-    const mousePointTo = {
-      x: (pointer.x - stage.x()) / oldScale,
-      y: (pointer.y - stage.y()) / oldScale,
-    };
-    stage.scale({ x: newScale, y: newScale });
-    const newPos = {
-      x: pointer.x - mousePointTo.x * newScale,
-      y: pointer.y - mousePointTo.y * newScale,
-    };
-    stage.position(newPos);
-    stage.batchDraw();
+  function zoomAtPointer(newScale,pointer){
+    const oldScale=stage.scaleX()||1;
+    const mousePointTo={x:(pointer.x-stage.x())/oldScale,y:(pointer.y-stage.y())/oldScale};
+    stage.scale({x:newScale,y:newScale});
+    const newPos={x:pointer.x-mousePointTo.x*newScale,y:pointer.y-mousePointTo.y*newScale};
+    stage.position(newPos); stage.batchDraw();
   }
-  fitBtn.onclick = fitStageToHost;
-  zoom1Btn.onclick = () => { stage.scale({ x:1, y:1 }); stage.position({ x:0, y:0 }); stage.batchDraw(); };
+  fitBtn.onclick=fitStageToHost; zoom1Btn.onclick=()=>{stage.scale({x:1,y:1});stage.position({x:0,y:0});stage.batchDraw();};
 
-  // ---- Pinch-to-zoom & pan con 2 dita (mobile) ------------------------------
-  let lastDist = 0, lastCenter = null, panning = false;
-  stage.getContent().addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      lastDist = getTouchDist(e);
-      lastCenter = getTouchCenter(e);
-      panning = true;
-    }
-  }, { passive: false });
-  stage.getContent().addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && panning) {
-      e.preventDefault();
-      const dist = getTouchDist(e);
-      const center = getTouchCenter(e);
-      const oldScale = stage.scaleX() || 1;
-      const newScale = oldScale * (dist / (lastDist || dist));
-      zoomAtPointer(newScale, { x: center.x, y: center.y });
-      const dx = center.x - lastCenter.x;
-      const dy = center.y - lastCenter.y;
-      stage.position({ x: stage.x() + dx, y: stage.y() + dy });
-      stage.batchDraw();
-      lastDist = dist; lastCenter = center;
-    }
-  }, { passive: false });
-  stage.getContent().addEventListener('touchend', () => { panning = false; lastDist = 0; lastCenter = null; });
-
-  function getTouchDist(e) { const [t1, t2] = e.touches; const dx = t1.clientX - t2.clientX; const dy = t1.clientY - t2.clientY; return Math.hypot(dx, dy); }
-  function getTouchCenter(e) { const [t1, t2] = e.touches; return { x: (t1.clientX + t2.clientX)/2, y: (t1.clientY + t2.clientY)/2 }; }
-
-  // ---- Resize observer per rifit automatico --------------------------------
-  const ro = new ResizeObserver(() => {
-    if (!stage) return;
-    stage.size({ width: stageHost.clientWidth, height: stageHost.clientHeight || 300 });
-    fitStageToHost();
-  });
+  // ---- Resize observer
+  const ro=new ResizeObserver(()=>{ if(!stage) return; stage.size({width:stageHost.clientWidth,height:stageHost.clientHeight||300}); fitStageToHost(); });
   ro.observe(stageHost);
 
-  // ---- Boot -----------------------------------------------------------------
-  initStage();
-  renderAll();
-  refreshList();
-  fitStageToHost();
+  // ---- Boot
+  initStage(); renderAll(); fitStageToHost();
 })();
 </script>
 </body>
