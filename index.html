@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Vanilla (iPhone + Desktop fix)</title>
+  <title>LEDWall Mapper – Vanilla</title>
   <style>
     :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; }
     * { box-sizing: border-box; }
-    body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; touch-action: none; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
     main { display:flex; gap:12px; padding:12px; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
@@ -26,11 +26,11 @@
     li { padding:8px 4px; border-top:1px dashed var(--border); display:flex; justify-content:space-between; gap:8px; align-items:center; }
 
     /* Viewport che scala il canvas per entrare nello spazio disponibile */
-    #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; touch-action: none; }
+    #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
     #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action: none; }
 
     /* Screen: l'area di lavoro in pixel reali */
-    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; touch-action: none; }
+    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; touch-action: none; -webkit-user-select:none; user-select:none; }
     /* Grid di sfondo 100px */
     #screen::before {
       content:""; position:absolute; inset:0; pointer-events:none;
@@ -41,8 +41,9 @@
     }
 
     /* Composizione */
-    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.03); cursor:move; touch-action: none; }
+    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.03); cursor:move; touch-action: none; -webkit-user-select:none; user-select:none; }
     .comp.selected { border-color:#7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
+    /* Griglia interna basata su tile size (impostata inline) */
     .comp .name { position:absolute; left:4px; right:4px; text-align:center; font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
     .comp .info { position:absolute; left:4px; top:4px; font-size:12px; color:#d6e8ff; text-shadow:0 1px 2px #000; }
   </style>
@@ -145,7 +146,7 @@
   </main>
 
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Vanilla build: HTML/CSS/JS senza librerie per massima compatibilità desktop/mobile.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Vanilla build: HTML/CSS/JS senza librerie di terze parti per massima compatibilità desktop/mobile.</div>
   </footer>
 
 <script>
@@ -157,7 +158,6 @@
     selectedId: null,
     scale: 1
   };
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && (navigator.maxTouchPoints||0) > 1);
 
   // ---------- Helpers DOM ----------
   const $ = (id) => document.getElementById(id);
@@ -169,12 +169,6 @@
   const viewport=$('viewport'), screenWrap=$('screenWrap'), screen=$('screen');
   const saveBtn=$('save'), loadBtn=$('load'), clearBtn=$('clear');
 
-  // Evita scroll pagina durante drag su iOS
-  ['touchstart','touchmove','touchend','gesturestart'].forEach(ev => {
-    screenWrap.addEventListener(ev, (e)=> e.preventDefault(), { passive: false });
-    screen.addEventListener(ev, (e)=> e.preventDefault(), { passive: false });
-  });
-
   // ---------- Init canvas ----------
   function applyCanvasSize(w,h){
     state.canvas.w = w; state.canvas.h = h;
@@ -184,6 +178,7 @@
     fitToViewport();
   }
   function fitToViewport(){
+    // scala lo screen per entrare nel viewport lasciando 16px di margine
     const vw = viewport.clientWidth - 16;
     const vh = viewport.clientHeight - 16;
     const sx = vw / (state.canvas.w + 20);
@@ -200,6 +195,7 @@
   function overlaps(a,b){ return !(a.x2<=b.x||a.x>=b.x2||a.y2<=b.y||a.y>=b.y2); }
   function collidesAny(id, B){ return state.compositions.some(c => c.id!==id && overlaps(B, bbox(c))); }
 
+  // First-fit scan L->R, T->B
   function findFirstFit(w,h){
     const maxX = 10 + state.canvas.w - w;
     const maxY = 10 + state.canvas.h - h;
@@ -212,6 +208,7 @@
     }
     return null;
   }
+
   function rightmost(){
     if (state.compositions.length===0) return null;
     let rm = state.compositions[0], m=bbox(rm).x2;
@@ -221,10 +218,14 @@
 
   // ---------- Render ----------
   function renderAll(){
+    // pulisci
     for (const el of [...screen.querySelectorAll('.comp')]) el.remove();
+    // composizioni
     for (const c of state.compositions) renderComp(c);
+    // lista
     refreshList();
   }
+
   function renderComp(c){
     const b = bbox(c);
     const el = document.createElement('div');
@@ -235,6 +236,7 @@
     el.style.height = b.h + 'px';
     el.dataset.id = c.id;
 
+    // griglia interna per tile
     el.style.backgroundImage = `
       linear-gradient(to right, #1e3f3f 1px, transparent 1px),
       linear-gradient(to bottom, #1e3f3f 1px, transparent 1px)`;
@@ -249,10 +251,12 @@
     name.className = 'name';
     const fs = Math.max(16, Math.min(96, Math.floor(Math.min(b.w,b.h)*0.22)));
     name.style.fontSize = fs + 'px';
+    // centro verticale
     name.style.top = `calc(50% - ${fs/2}px)`;
     name.textContent = c.name;
     el.appendChild(name);
 
+    // interazioni
     el.addEventListener('pointerdown', (e)=> startDrag(e, c.id), { passive: false });
     el.addEventListener('click', ()=> select(c.id));
 
@@ -278,54 +282,57 @@
     }
   }
 
-  // ---------- Drag manuale robusto (pointer events) ----------
-  let drag = null; // {id,dx,dy,el,pointerId}
+  // ---------- Drag manuale robusto ----------
+  let drag = null; // {id,dx,dy}
   function startDrag(e, id){
-    e.preventDefault(); // blocca scroll e gesture
+    e.preventDefault();
     select(id);
     const c = state.compositions.find(x=>x.id===id);
+    const b = bbox(c);
     const vpRect = viewport.getBoundingClientRect();
+    // posizione puntatore relativa allo screenWrap scalato
     const px = (e.clientX - vpRect.left) / state.scale - 10; // -10 padding
     const py = (e.clientY - vpRect.top)  / state.scale - 10;
     drag = { id, dx: px - c.x + 10, dy: py - c.y + 10, el: e.currentTarget, pointerId: e.pointerId };
-    if (!isIOS) drag.el?.setPointerCapture?.(e.pointerId); // su iOS meglio senza capture
+    drag.el?.setPointerCapture?.(e.pointerId);
     document.addEventListener('pointermove', onDragMove, { passive: false });
     document.addEventListener('pointerup', onDragEnd, { once:true });
-    document.addEventListener('pointercancel', onDragCancel, { once:true });
   }
   function onDragMove(e){
-    if (!drag) return;
-    if (drag.pointerId!=null && e.pointerId !== drag.pointerId) return;
+    if (drag?.pointerId != null && e.pointerId !== drag.pointerId) return; // ignora altre dita/penne
     e.preventDefault();
+    if (!drag) return;
     const c = state.compositions.find(x=>x.id===drag.id);
     const vpRect = viewport.getBoundingClientRect();
-    const px = (e.clientX - vpRect.left) / state.scale;
+    const px = (e.clientX - vpRect.left) / state.scale; // coordinate nello spazio screenWrap
     const py = (e.clientY - vpRect.top)  / state.scale;
     let nx = Math.round(px - drag.dx);
     let ny = Math.round(py - drag.dy);
     const b = { x:nx, y:ny, w:c.cols*c.tileW, h:c.rows*c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+    // clamp ai bordi dello screen (ricorda: screen parte a +10,+10)
     if (b.x < 10) b.x = 10;
     if (b.y < 10) b.y = 10;
     if (b.x2 > 10 + state.canvas.w) b.x = 10 + state.canvas.w - b.w;
     if (b.y2 > 10 + state.canvas.h) b.y = 10 + state.canvas.h - b.h;
+
+    // disegna live (anche se magari collide, decidiamo alla fine)
     c.x = b.x; c.y = b.y;
     renderAll();
   }
   function onDragEnd(e){
-    if (drag?.el && drag.pointerId!=null && !isIOS) drag.el.releasePointerCapture?.(drag.pointerId);
-    document.removeEventListener('pointermove', onDragMove, { passive: false });
+    if (drag?.el && drag.pointerId!=null) { drag.el.releasePointerCapture?.(drag.pointerId); }
     const id = drag?.id; drag=null;
     if (!id) return;
     const c = state.compositions.find(x=>x.id===id);
     const b = bbox(c);
     if (collidesAny(id, b)){
+      // ripristina all'ultimo valido (semplice: sposta di 0 fino a libero)
       const prev = findFirstFit(b.w, b.h);
       if (prev){ c.x=prev.x; c.y=prev.y; }
       else msg.textContent = '❌ Nessuno spazio libero';
     }
     renderAll();
   }
-  function onDragCancel(){ drag=null; document.removeEventListener('pointermove', onDragMove, { passive: false }); }
 
   // ---------- CRUD composizioni ----------
   function select(id){
@@ -407,6 +414,7 @@
   add.onclick = addComp; update.onclick = updateComp;
 
   // ---------- Boot ----------
+  // default 1920×1080 già nei campi
   canvasW.value = state.canvas.w; canvasH.value = state.canvas.h;
   applyCanvasSize(state.canvas.w, state.canvas.h);
   renderAll();
