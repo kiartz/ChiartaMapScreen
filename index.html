@@ -2,538 +2,417 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <title>LEDWall Mapper (MVP stabile)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LEDWall Mapper – Vanilla</title>
   <style>
-    :root { --bg:#111; --fg:#eee; --muted:#888; --acc:#3aa; --warn:#c93; }
+    :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; }
     * { box-sizing: border-box; }
-    body { margin:0; background:var(--bg); color:var(--fg); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    header, footer { padding:8px 12px; background:#0b0b0b; position:sticky; top:0; z-index:10; }
-    main { display:flex; gap:10px; padding:10px; }
-    .panel { background:#151515; border:1px solid #222; border-radius:8px; padding:10px; }
-    #left { width:340px; display:flex; flex-direction:column; gap:10px; }
-    #canvasWrap { flex:1; display:flex; flex-direction:column; gap:8px; min-width:300px; }
-    label { display:block; margin:6px 0 2px; color:#ccc; }
-    input[type="number"], input[type="text"], select { width:100%; padding:6px; background:#0f0f0f; color:#fff; border:1px solid #333; border-radius:6px; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
+    main { display:flex; gap:12px; padding:12px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
+    #left { width:360px; display:flex; flex-direction:column; gap:12px; }
+    #work { flex:1; display:flex; flex-direction:column; gap:10px; }
+    h3 { margin:0 0 8px; font-size:16px; }
+    label { display:block; margin:6px 0 4px; color:#cfd3d7; }
+    input, select, button { border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink); padding:8px; }
+    input[type=number] { width:100%; }
+    button { background:var(--acc); color:#001018; font-weight:700; cursor:pointer; }
+    button.secondary { background:#0f1115; color:var(--ink); }
+    button.warn { background:var(--warn); color:#1a0f00; }
     .row { display:flex; gap:8px; }
     .row > * { flex:1; }
-    button { padding:8px 10px; background:var(--acc); color:#001; border:none; border-radius:6px; font-weight:600; cursor:pointer; }
-    button.secondary { background:#222; color:#ddd; border:1px solid #333; }
-    button.warn { background:var(--warn); color:#000; }
     ul { list-style:none; padding:0; margin:0; }
-    li { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:6px; border-bottom:1px solid #222; }
-    .tag { font-size:12px; color:#aaa; }
+    li { padding:8px 4px; border-top:1px dashed var(--border); display:flex; justify-content:space-between; gap:8px; align-items:center; }
 
-    #stageHost {
-      height: 72vh; max-height: 80vh; width: 100%;
-      overflow: hidden; background:#0a0a0a; border:1px solid #222; border-radius:8px; padding:0; position:relative;
-      touch-action: none; user-select: none; -webkit-user-drag: none;
+    /* Viewport che scala il canvas per entrare nello spazio disponibile */
+    #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
+    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; }
+
+    /* Screen: l'area di lavoro in pixel reali */
+    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; }
+    /* Grid di sfondo 100px */
+    #screen::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
+      background-image:
+        linear-gradient(to right, #181c24 1px, transparent 1px),
+        linear-gradient(to bottom, #181c24 1px, transparent 1px);
+      background-size:100px 100px, 100px 100px;
     }
 
-    @media (max-width: 900px) {
-      main { flex-direction: column; }
-      #left { width: 100%; }
-    }
+    /* Composizione */
+    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.03); cursor:move; }
+    .comp.selected { border-color:#7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
+    /* Griglia interna basata su tile size (impostata inline) */
+    .comp .name { position:absolute; left:4px; right:4px; text-align:center; font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
+    .comp .info { position:absolute; left:4px; top:4px; font-size:12px; color:#d6e8ff; text-shadow:0 1px 2px #000; }
   </style>
-  <script src="https://unpkg.com/konva@9/konva.min.js"></script>
-  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 </head>
 <body>
-<header>
-  <div class="row">
-    <div style="flex:2"><strong>LEDWall Mapper</strong> <span class="tag">MVP • multi-composizione • no-overlap</span></div>
-    <div class="row" style="flex:3; flex-wrap:wrap; gap:6px">
-      <select id="preset">
-        <option value="">Preset risoluzione</option>
-        <option>1280x720</option>
-        <option selected>1920x1080</option>
-        <option>2560x1440</option>
-        <option>3840x2160</option>
-        <option>7680x4320</option>
-      </select>
-      <input id="canvasW" type="number" min="1" placeholder="Canvas W (px)" />
-      <input id="canvasH" type="number" min="1" placeholder="Canvas H (px)" />
-      <button id="setCanvas">Applica</button>
-      <button id="fit" class="secondary">Fit</button>
-      <button id="zoom1" class="secondary">100%</button>
-      <button id="exportPNG" class="secondary">PNG</button>
-      <button id="exportSVG" class="secondary">SVG</button>
-      <button id="exportJSON" class="secondary">JSON</button>
-      <button id="exportCSV" class="secondary">CSV</button>
-    </div>
-  </div>
-</header>
-
-<main>
-  <section id="left">
-    <div class="panel">
-      <h3 style="margin:0 0 8px">Nuova / Modifica Composizione</h3>
-      <label>Nome</label><input id="name" type="text" placeholder="Ledwall Main" />
-      <div class="row">
-        <div><label>Colonne (C)</label><input id="cols" type="number" min="1" value="12" /></div>
-        <div><label>Righe (R)</label><input id="rows" type="number" min="1" value="6" /></div>
-      </div>
-      <div class="row">
-        <div><label>Tile W (px)</label><input id="tileW" type="number" min="1" value="128" /></div>
-        <div><label>Tile H (px)</label><input id="tileH" type="number" min="1" value="128" /></div>
-      </div>
-      <div class="row">
-        <div><label>Pos X</label><input id="posX" type="number" value="0" /></div>
-        <div><label>Pos Y</label><input id="posY" type="number" value="0" /></div>
-      </div>
-      <div class="row">
-        <div><label>Pitch (mm)</label><input id="pitch" type="number" step="0.1" placeholder="opzionale" /></div>
-        <div><label>Larghezza fisica (m)</label><input id="widthM" type="text" disabled placeholder="auto" /></div>
-      </div>
-      <div class="row">
-        <button id="add">Aggiungi composizione</button>
-        <button id="update" class="secondary">Aggiorna composizione</button>
+  <header>
+    <div class="row" style="align-items:center; flex-wrap:wrap">
+      <div style="font-weight:800">LEDWall Mapper – Vanilla</div>
+      <div class="row" style="flex:1; justify-content:flex-end; gap:6px">
+        <select id="preset">
+          <option value="">Preset</option>
+          <option>1280x720</option>
+          <option selected>1920x1080</option>
+          <option>2560x1440</option>
+          <option>3840x2160</option>
+          <option>7680x4320</option>
+        </select>
+        <input id="canvasW" type="number" placeholder="W" />
+        <input id="canvasH" type="number" placeholder="H" />
+        <button id="apply" class="secondary">Applica</button>
+        <button id="fit" class="secondary">Fit</button>
+        <button id="zoom1" class="secondary">100%</button>
       </div>
     </div>
+  </header>
 
-    <div class="panel">
-      <h3 style="margin:0 0 8px">Composizioni</h3>
-      <ul id="compositions"></ul>
-      <div class="row" style="margin-top:8px">
-        <button id="save">Salva progetto</button>
-        <button id="load" class="secondary">Carica</button>
-        <button id="clear" class="warn">Nuovo</button>
+  <main>
+    <section id="left">
+      <div class="panel">
+        <h3>Nuova / Modifica composizione</h3>
+        <label>Nome</label>
+        <input id="name" type="text" placeholder="Ledwall Main" />
+        <div class="row">
+          <div>
+            <label>Colonne (C)</label>
+            <input id="cols" type="number" min="1" value="12">
+          </div>
+          <div>
+            <label>Righe (R)</label>
+            <input id="rows" type="number" min="1" value="6">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Tile W (px)</label>
+            <input id="tileW" type="number" min="1" value="128">
+          </div>
+          <div>
+            <label>Tile H (px)</label>
+            <input id="tileH" type="number" min="1" value="128">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Pos X</label>
+            <input id="posX" type="number" value="0">
+          </div>
+          <div>
+            <label>Pos Y</label>
+            <input id="posY" type="number" value="0">
+          </div>
+        </div>
+        <div class="row">
+          <button id="add">Aggiungi</button>
+          <button id="update" class="secondary">Aggiorna</button>
+        </div>
       </div>
-    </div>
 
-    <div class="panel">
-      <h3 style="margin:0 0 8px">Info</h3>
-      <div id="message"></div>
-      <pre id="debug" style="white-space:pre-wrap; color:#9cf; font-size:12px; margin-top:6px"></pre>
-    </div>
-  </section>
-
-  <section id="canvasWrap">
-    <div class="panel" style="display:flex; flex-direction:column; gap:8px">
-      <div class="row" style="align-items:center; flex-wrap:wrap">
-        <div>Canvas: <span id="canvasInfo">–</span></div>
-        <div class="tag">Drag composizioni • Pinch (2 dita) per zoom/pan • Fit per riquadrare</div>
+      <div class="panel">
+        <h3>Composizioni</h3>
+        <ul id="list"></ul>
+        <div class="row" style="margin-top:8px">
+          <button id="save" class="secondary">Salva</button>
+          <button id="load" class="secondary">Carica</button>
+          <button id="clear" class="warn">Nuovo</button>
+        </div>
       </div>
-      <div id="stageHost"></div>
-    </div>
-  </section>
-</main>
 
-<footer>
-  <span class="tag">Tip: Le composizioni non possono sovrapporsi. L’offset (X,Y) è riferito al top-left del canvas.</span>
-</footer>
+      <div class="panel">
+        <h3>Info</h3>
+        <div id="message" style="min-height:1.2em;color:#9cd1ff"></div>
+      </div>
+    </section>
+
+    <section id="work">
+      <div class="panel" style="display:flex; flex-direction:column; gap:8px; min-height:72vh">
+        <div class="row" style="align-items:center; flex-wrap:wrap">
+          <div>Canvas: <span id="canvasInfo">–</span></div>
+          <div style="margin-left:auto" class="row">
+            <span class="muted" style="color:#a0a6ad">Drag, nessuna sovrapposizione, offset riferito al top-left</span>
+          </div>
+        </div>
+        <div id="viewport">
+          <div id="screenWrap">
+            <div id="screen"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Vanilla build: HTML/CSS/JS senza librerie di terze parti per massima compatibilità desktop/mobile.</div>
+  </footer>
 
 <script>
 (() => {
-  // ---- Safe UUID ------------------------------------------------------------
-  function uid(){
-    if (crypto && crypto.randomUUID) return crypto.randomUUID();
-    return 'u-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-  }
-
-  // ---- Stato progetto -------------------------------------------------------
+  // ---------- Stato ----------
   const state = {
-    projectId: uid(),
-    name: "Project",
-    canvas: { width: 1920, height: 1080, background: "#111111" },
-    compositions: [],
+    canvas: { w: 1920, h: 1080 },
+    compositions: [], // {id,name,cols,rows,tileW,tileH,x,y}
     selectedId: null,
-    version: 1
+    scale: 1
   };
 
-  // ---- UI refs --------------------------------------------------------------
-  const $ = id => document.getElementById(id);
-  const preset = $("preset"), canvasW = $("canvasW"), canvasH = $("canvasH");
-  const setCanvasBtn = $("setCanvas");
-  const stageHost = $("stageHost"), canvasInfo = $("canvasInfo"), msg = $("message"), dbg=$("debug");
-  const name = $("name"), rows = $("rows"), cols = $("cols"), tileW = $("tileW"), tileH = $("tileH"), posX = $("posX"), posY = $("posY");
-  const pitch = $("pitch"), widthM = $("widthM");
-  const addBtn = $("add"), updateBtn = $("update"), list = $("compositions");
-  const exportPNG = $("exportPNG"), exportSVG=$("exportSVG"), exportJSON=$("exportJSON"), exportCSV=$("exportCSV");
-  const saveBtn=$("save"), loadBtn=$("load"), clearBtn=$("clear");
-  const fitBtn = $("fit"), zoom1Btn=$("zoom1");
+  // ---------- Helpers DOM ----------
+  const $ = (id) => document.getElementById(id);
+  const preset = $('preset'), canvasW=$('canvasW'), canvasH=$('canvasH');
+  const apply=$('apply'), fit=$('fit'), zoom1=$('zoom1');
+  const name=$('name'), cols=$('cols'), rows=$('rows'), tileW=$('tileW'), tileH=$('tileH'), posX=$('posX'), posY=$('posY');
+  const add=$('add'), update=$('update');
+  const list=$('list'), msg=$('message'), canvasInfo=$('canvasInfo');
+  const viewport=$('viewport'), screenWrap=$('screenWrap'), screen=$('screen');
+  const saveBtn=$('save'), loadBtn=$('load'), clearBtn=$('clear');
 
-  // ---- Konva Stage & Layers -------------------------------------------------
-  let stage, layerBg, layerComps;
-  const isTouchDevice = (() => {
-    return (('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0);
-  })();
-  const padding = 10; // bordo canvas nel container Konva
-
-  function safe(fn){
-    try { return fn(); } catch(e){ dbg.textContent = 'Errore: '+ e.message + '
-' + e.stack; console.error(e); msg.textContent='❌ Errore JS (vedi debug)'; }
+  // ---------- Init canvas ----------
+  function applyCanvasSize(w,h){
+    state.canvas.w = w; state.canvas.h = h;
+    screen.style.width = w+"px";
+    screen.style.height = h+"px";
+    canvasInfo.textContent = `${w}×${h}px`;
+    fitToViewport();
   }
-
-  // Default 1920x1080 PRIMA di creare lo stage
-  (function setDefaultCanvas(){
-    const [w,h] = '1920x1080'.split('x').map(Number);
-    preset.value = '1920x1080';
-    canvasW.value = w; canvasH.value = h;
-    state.canvas.width = w; state.canvas.height = h;
-  })();
-
-  function initStage() {
-    stageHost.innerHTML = "";
-    stage = new Konva.Stage({
-      width: stageHost.clientWidth || 600,
-      height: stageHost.clientHeight || 400,
-      container: "stageHost"
-    });
-    stage.dragDistance(1); // compat desktop
-    layerBg = new Konva.Layer(); layerComps = new Konva.Layer();
-    stage.add(layerBg); stage.add(layerComps);
-    drawBackground();
-    stage.draggable(false);
-
-    // Zoom con rotella (Ctrl/Cmd)
-    stage.off('wheel');
-    stage.on('wheel', (e) => {
-      if (!(e.evt.ctrlKey || e.evt.metaKey)) return;
-      e.evt.preventDefault();
-      const oldScale = stage.scaleX() || 1;
-      const pointer = stage.getPointerPosition();
-      const newScale = e.evt.deltaY > 0 ? oldScale / 1.05 : oldScale * 1.05;
-      zoomAtPointer(newScale, pointer);
-    });
-
-    fitStageToHost();
+  function fitToViewport(){
+    // scala lo screen per entrare nel viewport lasciando 16px di margine
+    const vw = viewport.clientWidth - 16;
+    const vh = viewport.clientHeight - 16;
+    const sx = vw / (state.canvas.w + 20);
+    const sy = vh / (state.canvas.h + 20);
+    state.scale = Math.min(sx, sy, 1);
+    screenWrap.style.transform = `scale(${state.scale})`;
   }
+  function zoom100(){ state.scale = 1; screenWrap.style.transform = `scale(1)`; }
 
-  function drawBackground() {
-    layerBg.destroyChildren();
-    const bg = new Konva.Rect({ x: padding, y: padding, width: state.canvas.width, height: state.canvas.height, fill: '#0c0c0c', stroke: '#222', strokeWidth: 1, listening:false });
-    layerBg.add(bg);
-    // Griglia di sfondo ogni 100px
-    for (let x = padding; x <= state.canvas.width + padding; x += 100) {
-      layerBg.add(new Konva.Line({ points:[x,padding, x, state.canvas.height+padding], stroke:'#1a1a1a', strokeWidth:1, listening:false }));
-    }
-    for (let y = padding; y <= state.canvas.height + padding; y += 100) {
-      layerBg.add(new Konva.Line({ points:[padding,y, state.canvas.width+padding, y], stroke:'#1a1a1a', strokeWidth:1, listening:false }));
-    }
-    layerBg.draw();
-    canvasInfo.textContent = `${state.canvas.width}×${state.canvas.height}px`;
-  }
+  // ---------- Utils ----------
+  const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const bbox = (c) => ({ x:c.x, y:c.y, w:c.cols*c.tileW, h:c.rows*c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} });
+  const clampToCanvas = (b) => b.x>=10 && b.y>=10 && b.x2<=10+state.canvas.w && b.y2<=10+state.canvas.h;
+  function overlaps(a,b){ return !(a.x2<=b.x||a.x>=b.x2||a.y2<=b.y||a.y>=b.y2); }
+  function collidesAny(id, B){ return state.compositions.some(c => c.id!==id && overlaps(B, bbox(c))); }
 
-  // ---- Utility --------------------------------------------------------------
-  const snap = v => Math.round(v);
-  const bboxOf = (c) => ({ x: c.x, y: c.y, w: c.cols*c.tileW, h: c.rows*c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} });
-  const overlap = (a,b)=>!(a.x2<=b.x||a.x>=b.x2||a.y2<=b.y||a.y>=b.y2);
-  function collidesAny(id,b){return state.compositions.some(c=>c.id!==id&&overlap(b,bboxOf(c)));}
-  function canvasClamp(b){return b.x>=padding&&b.y>=padding&&b.x2<=padding+state.canvas.width&&b.y2<=padding+state.canvas.height;}
-  const pxSize = (c)=>({w:c.cols*c.tileW,h:c.rows*c.tileH});
-
-  function rightmostBBox(){
-    if (state.compositions.length===0) return null;
-    let rm = state.compositions[0]; let max = bboxOf(rm).x2;
-    for (const c of state.compositions){ const b=bboxOf(c); if (b.x2>max){max=b.x2; rm=c;} }
-    return bboxOf(rm);
-  }
-
-  function findFirstFit(w, h){
-    const maxX = padding + state.canvas.width - w;
-    const maxY = padding + state.canvas.height - h;
-    for (let y = padding; y <= maxY; y++){
-      for (let x = padding; x <= maxX; x++){
-        const b = { x, y, w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-        if (!canvasClamp(b)) continue;
-        const hits = state.compositions.some(c => overlap(b, bboxOf(c)));
-        if (!hits) return { x, y };
+  // First-fit scan L->R, T->B
+  function findFirstFit(w,h){
+    const maxX = 10 + state.canvas.w - w;
+    const maxY = 10 + state.canvas.h - h;
+    for (let y=10; y<=maxY; y++){
+      for (let x=10; x<=maxX; x++){
+        const B = {x,y,w,h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h}};
+        if (!clampToCanvas(B)) continue;
+        if (!collidesAny('new', B)) return {x,y};
       }
     }
     return null;
   }
 
-  // ---- Render composizioni --------------------------------------------------
+  function rightmost(){
+    if (state.compositions.length===0) return null;
+    let rm = state.compositions[0], m=bbox(rm).x2;
+    for (const c of state.compositions){ const b=bbox(c); if (b.x2>m){ m=b.x2; rm=c; } }
+    return bbox(rm);
+  }
+
+  // ---------- Render ----------
   function renderAll(){
-    layerComps.destroyChildren();
-    for (const c of state.compositions) renderComposition(c);
-    layerComps.draw();
+    // pulisci
+    for (const el of [...screen.querySelectorAll('.comp')]) el.remove();
+    // composizioni
+    for (const c of state.compositions) renderComp(c);
+    // lista
     refreshList();
   }
 
-  function renderComposition(comp){
-    const b=bboxOf(comp);
-    const group=new Konva.Group({x:b.x,y:b.y,draggable: isTouchDevice && !comp.locked, id:comp.id});
+  function renderComp(c){
+    const b = bbox(c);
+    const el = document.createElement('div');
+    el.className = 'comp' + (state.selectedId===c.id?' selected':'');
+    el.style.left = b.x + 'px';
+    el.style.top  = b.y + 'px';
+    el.style.width  = b.w + 'px';
+    el.style.height = b.h + 'px';
+    el.dataset.id = c.id;
 
-    const rect=new Konva.Rect({
-      x:0,y:0,width:b.w,height:b.h,
-      stroke: state.selectedId===comp.id?'#7fd':'#3aa',
-      strokeWidth: state.selectedId===comp.id?3:2,
-      dash:[4,4],
-      fill: 'rgba(0,0,0,0.001)', // hit area piena per drag affidabile
-      hitStrokeWidth: 8,
-      listening: true
-    });
-    group.add(rect);
+    // griglia interna per tile
+    el.style.backgroundImage = `
+      linear-gradient(to right, #1e3f3f 1px, transparent 1px),
+      linear-gradient(to bottom, #1e3f3f 1px, transparent 1px)`;
+    el.style.backgroundSize = `${c.tileW}px ${c.tileH}px, ${c.tileW}px ${c.tileH}px`;
 
-    // Griglia interna delle mattonelle
-    for (let c=1;c<comp.cols;c++) group.add(new Konva.Line({ points:[c*comp.tileW,0, c*comp.tileW,b.h], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
-    for (let r=1;r<comp.rows;r++) group.add(new Konva.Line({ points:[0,r*comp.tileH, b.w,r*comp.tileH], stroke:'#1e3f3f', strokeWidth:1, listening:false }));
+    const info = document.createElement('div');
+    info.className = 'info';
+    info.textContent = `${b.w}×${b.h}px • (${c.x-10},${c.y-10})`;
+    el.appendChild(info);
 
-    const size=pxSize(comp);
-    const offText=new Konva.Text({x:4,y:4,text:`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`,fontSize:12,fill:'#ddd',listening:false});
-    group.add(offText);
+    const name = document.createElement('div');
+    name.className = 'name';
+    const fs = Math.max(16, Math.min(96, Math.floor(Math.min(b.w,b.h)*0.22)));
+    name.style.fontSize = fs + 'px';
+    // centro verticale
+    name.style.top = `calc(50% - ${fs/2}px)`;
+    name.textContent = c.name;
+    el.appendChild(name);
 
-    const fontSize=Math.max(16,Math.min(96,Math.floor(Math.min(b.w,b.h)*0.22)));
-    const nameText=new Konva.Text({text:comp.name,fontSize:fontSize,fontStyle:'bold',fill:'#eee',x:4,width:b.w-8,align:'center',listening:false});
-    nameText.y((b.h-nameText.height())/2);
-    group.add(nameText);
+    // interazioni
+    el.addEventListener('pointerdown', (e)=> startDrag(e, c.id));
+    el.addEventListener('click', ()=> select(c.id));
 
-    // Cursor feedback
-    group.on('mouseenter mouseover', () => { stage.container().style.cursor = 'move'; });
-    group.on('mouseleave mouseout', () => { stage.container().style.cursor = 'default'; });
-
-    if (isTouchDevice) {
-      // Native Konva drag per touch
-      group.on('dragmove', () => {
-        const p = group.position();
-        offText.text(`${size.w}×${size.h}px • (${Math.round(p.x)-padding},${Math.round(p.y)-padding})`);
-        layerComps.batchDraw();
-      });
-      group.on('dragend', () => {
-        const p = group.position();
-        const proposed = { x: snap(p.x), y: snap(p.y), w:b.w, h:b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-        if (!canvasClamp(proposed) || collidesAny(comp.id, proposed)) {
-          group.position({ x: comp.x, y: comp.y });
-        } else {
-          comp.x = proposed.x; comp.y = proposed.y;
-        }
-        offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
-        layerComps.batchDraw();
-        refreshList();
-      });
-    } else {
-      // ---- Fallback Desktop: drag manuale con mouse ------------------------
-      let dragging = false; let startOffset = {dx:0, dy:0};
-      rect.on('mousedown', (e) => {
-        selectComposition(comp.id);
-        const p = group.getAbsolutePosition();
-        const pointer = stage.getPointerPosition();
-        startOffset.dx = pointer.x - p.x;
-        startOffset.dy = pointer.y - p.y;
-        dragging = true;
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp, { once: true });
-      });
-      function onMove(ev){
-        if (!dragging) return;
-        const pointer = stage.getPointerPosition();
-        let nx = pointer.x - startOffset.dx;
-        let ny = pointer.y - startOffset.dy;
-        // clamp ai bordi canvas
-        if (nx < padding) nx = padding;
-        if (ny < padding) ny = padding;
-        if (nx + b.w > padding + state.canvas.width) nx = padding + state.canvas.width - b.w;
-        if (ny + b.h > padding + state.canvas.height) ny = padding + state.canvas.height - b.h;
-        group.position({ x: nx, y: ny });
-        offText.text(`${size.w}×${size.h}px • (${Math.round(nx)-padding},${Math.round(ny)-padding})`);
-        layerComps.batchDraw();
-      }
-      function onUp(ev){
-        window.removeEventListener('mousemove', onMove);
-        dragging = false;
-        const p = group.position();
-        const proposed = { x: snap(p.x), y: snap(p.y), w:b.w, h:b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-        if (!canvasClamp(proposed) || collidesAny(comp.id, proposed)) {
-          group.position({ x: comp.x, y: comp.y });
-        } else {
-          comp.x = proposed.x; comp.y = proposed.y;
-        }
-        offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
-        layerComps.batchDraw(); refreshList();
-      }
-    }
-
-    layerComps.add(group);
+    screen.appendChild(el);
   }
-  }
-
-  // ---- Selezione & lista ----------------------------------------------------
-  function selectComposition(id){ state.selectedId=id; renderAll(); }
 
   function refreshList(){
     list.innerHTML = '';
     for (const c of state.compositions){
-      const li=document.createElement('li');
-      const left=document.createElement('div');
-      const size=pxSize(c);
-      left.innerHTML=`<strong style="cursor:pointer">${c.name}</strong>
-        <div class="tag">${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH}px — ${size.w}×${size.h}px — pos (${c.x-padding},${c.y-padding})</div>`;
-      left.querySelector('strong').onclick=()=>selectComposition(c.id);
-
-      const right=document.createElement('div');
-      const btnSel=document.createElement('button'); btnSel.textContent='Seleziona'; btnSel.className='secondary'; btnSel.onclick=()=>selectComposition(c.id);
-      const btnDup=document.createElement('button'); btnDup.textContent='Duplica'; btnDup.className='secondary'; btnDup.onclick=()=>duplicateComposition(c);
-      const btnDel=document.createElement('button'); btnDel.textContent='Elimina'; btnDel.className='warn'; btnDel.onclick=()=>{ state.compositions = state.compositions.filter(x=>x.id!==c.id); if (state.selectedId===c.id) state.selectedId=null; renderAll(); };
-      right.append(btnSel, btnDup, btnDel);
-
-      li.append(left,right);
+      const li = document.createElement('li');
+      const left = document.createElement('div');
+      const b = bbox(c);
+      left.innerHTML = `<div style="font-weight:700; cursor:pointer">${c.name}</div>
+        <div style="color:#9cb3c9; font-size:12px">${c.cols}×${c.rows} @ ${c.tileW}×${c.tileH}px — ${b.w}×${b.h}px — pos (${c.x-10},${c.y-10})</div>`;
+      left.firstChild.onclick = ()=> select(c.id);
+      const right = document.createElement('div');
+      const dup = document.createElement('button'); dup.textContent='Duplica'; dup.className='secondary'; dup.onclick=()=> duplicate(c.id);
+      const del = document.createElement('button'); del.textContent='Elimina'; del.className='warn'; del.onclick=()=> remove(c.id);
+      right.append(dup, del);
+      li.append(left, right);
       if (state.selectedId===c.id) li.style.outline='2px solid #3aa';
       list.append(li);
     }
   }
 
-  function duplicateComposition(c){
-    const w=c.cols*c.tileW, h=c.rows*c.tileH;
-    const right = rightmostBBox();
-    let target = right ? { x: right.x2 + 0, y: right.y } : { x: padding, y: padding };
-    let b = { x: target.x, y: target.y, w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-    if (!canvasClamp(b) || collidesAny('new', b)) {
-      const fit = findFirstFit(w, h);
-      if (!fit) { msg.textContent='❌ Nessuno spazio libero nel canvas'; return; }
-      b.x = fit.x; b.y = fit.y;
+  // ---------- Drag manuale robusto ----------
+  let drag = null; // {id,dx,dy}
+  function startDrag(e, id){
+    select(id);
+    const c = state.compositions.find(x=>x.id===id);
+    const b = bbox(c);
+    const vpRect = viewport.getBoundingClientRect();
+    // posizione puntatore relativa allo screenWrap scalato
+    const px = (e.clientX - vpRect.left) / state.scale - 10; // -10 padding
+    const py = (e.clientY - vpRect.top)  / state.scale - 10;
+    drag = { id, dx: px - c.x + 10, dy: py - c.y + 10 };
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', onDragEnd, { once:true });
+  }
+  function onDragMove(e){
+    if (!drag) return;
+    const c = state.compositions.find(x=>x.id===drag.id);
+    const vpRect = viewport.getBoundingClientRect();
+    const px = (e.clientX - vpRect.left) / state.scale; // coordinate nello spazio screenWrap
+    const py = (e.clientY - vpRect.top)  / state.scale;
+    let nx = Math.round(px - drag.dx);
+    let ny = Math.round(py - drag.dy);
+    const b = { x:nx, y:ny, w:c.cols*c.tileW, h:c.rows*c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+    // clamp ai bordi dello screen (ricorda: screen parte a +10,+10)
+    if (b.x < 10) b.x = 10;
+    if (b.y < 10) b.y = 10;
+    if (b.x2 > 10 + state.canvas.w) b.x = 10 + state.canvas.w - b.w;
+    if (b.y2 > 10 + state.canvas.h) b.y = 10 + state.canvas.h - b.h;
+
+    // disegna live (anche se magari collide, decidiamo alla fine)
+    c.x = b.x; c.y = b.y;
+    renderAll();
+  }
+  function onDragEnd(){
+    const id = drag?.id; drag=null;
+    if (!id) return;
+    const c = state.compositions.find(x=>x.id===id);
+    const b = bbox(c);
+    if (collidesAny(id, b)){
+      // ripristina all'ultimo valido (semplice: sposta di 0 fino a libero)
+      const prev = findFirstFit(b.w, b.h);
+      if (prev){ c.x=prev.x; c.y=prev.y; }
+      else msg.textContent = '❌ Nessuno spazio libero';
     }
-    const nc = { ...structuredClone(c), id: uid(), name: c.name+" Copy", x:b.x, y:b.y };
-    state.compositions.push(nc); state.selectedId = nc.id; renderAll();
+    renderAll();
   }
 
-  // ---- Create / Update ------------------------------------------------------
-  function addComposition(){
-    const r=parseInt(rows.value,10), c=parseInt(cols.value,10), tw=parseInt(tileW.value,10), th=parseInt(tileH.value,10);
-    const nm=(name.value||"Composizione").trim();
-    if(!r||!c||!tw||!th){msg.textContent='❌ R,C,tileW,tileH richiesti';return;}
+  // ---------- CRUD composizioni ----------
+  function select(id){
+    state.selectedId = id;
+    const c = state.compositions.find(x=>x.id===id);
+    if (c){
+      name.value=c.name; rows.value=c.rows; cols.value=c.cols; tileW.value=c.tileW; tileH.value=c.tileH;
+      posX.value=c.x-10; posY.value=c.y-10;
+    }
+    renderAll();
+  }
+  function addComp(){
+    const r=+rows.value, c=+cols.value, tw=+tileW.value, th=+tileH.value; const nm=(name.value||'Composizione').trim();
+    if (!r||!c||!tw||!th) { msg.textContent='❌ R,C,tileW,tileH richiesti'; return; }
     const w=c*tw, h=r*th;
-
-    const right = rightmostBBox();
-    let base = right ? { x: right.x2 + 0, y: right.y } : { x: padding + parseInt(posX.value||0,10), y: padding + parseInt(posY.value||0,10) };
-    let b = { x: snap(base.x), y: snap(base.y), w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-    if (!canvasClamp(b) || collidesAny('new', b)) {
-      const fit = findFirstFit(w, h);
-      if (!fit){ msg.textContent='❌ Nessuno spazio libero nel canvas'; return; }
-      b.x = fit.x; b.y = fit.y;
+    const right = rightmost();
+    let pt = right ? { x:right.x2+0, y:right.y } : { x:10+(+posX.value||0), y:10+(+posY.value||0) };
+    let B = { x:pt.x, y:pt.y, w, h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+    if (!clampToCanvas(B) || collidesAny('new', B)){
+      const fit = findFirstFit(w,h);
+      if (!fit) { msg.textContent='❌ Nessuno spazio libero nel canvas'; return; }
+      B.x = fit.x; B.y = fit.y;
     }
-
-    const comp={ id: uid(), name:nm, rows:r, cols:c, tileW:tw, tileH:th, x:b.x, y:b.y, rotation:0, locked:false, visible:true, pitch: parseFloat(pitch.value)||null };
-    state.compositions.push(comp); state.selectedId = comp.id; renderAll();
-    msg.textContent=`✅ Aggiunta ${comp.name}`;
+    const comp = { id:uid(), name:nm, cols:c, rows:r, tileW:tw, tileH:th, x:B.x, y:B.y };
+    state.compositions.push(comp);
+    state.selectedId = comp.id;
+    renderAll();
+    msg.textContent = `✅ Aggiunta ${comp.name}`;
   }
-  addBtn.onclick=()=>safe(addComposition);
-
-  updateBtn.onclick = () => safe(() => {
-    const id = state.selectedId; if (!id) { msg.textContent='Seleziona una composizione.'; return; }
-    const c = state.compositions.find(x=>x.id===id); if (!c) return;
+  function updateComp(){
+    const id = state.selectedId; if (!id){ msg.textContent='Seleziona una composizione.'; return; }
+    const c = state.compositions.find(x=>x.id===id);
     const nv = {
-      name: (name.value||c.name).trim(),
-      rows: parseInt(rows.value||c.rows,10),
-      cols: parseInt(cols.value||c.cols,10),
-      tileW: parseInt(tileW.value||c.tileW,10),
-      tileH: parseInt(tileH.value||c.tileH,10),
-      x: padding + parseInt(posX.value||c.x-padding,10),
-      y: padding + parseInt(posY.value||c.y-padding,10),
-      pitch: parseFloat(pitch.value)||null
+      name:(name.value||c.name).trim(),
+      cols:+cols.value||c.cols,
+      rows:+rows.value||c.rows,
+      tileW:+tileW.value||c.tileW,
+      tileH:+tileH.value||c.tileH,
+      x:10 + (+posX.value||0),
+      y:10 + (+posY.value||0)
     };
-    const proposed = { ...c, ...nv };
-    const b = bboxOf(proposed);
-    if (!canvasClamp(b) || collidesAny(c.id,b)) { msg.textContent='❌ Sovrapposizione o fuori canvas'; return; }
-    Object.assign(c, nv); renderAll(); msg.textContent='✅ Aggiornata';
-  });
-
-  // ---- Canvas preset/custom -------------------------------------------------
-  preset.addEventListener('change', () => {
-    if (!preset.value) return;
-    const [w,h] = preset.value.split('x').map(Number);
-    canvasW.value = w; canvasH.value = h;
-  });
-  setCanvasBtn.addEventListener('click', () => safe(() => {
-    const w = parseInt(canvasW.value||0,10), h = parseInt(canvasH.value||0,10);
-    if (!w||!h) { msg.textContent='❌ Inserisci Canvas W/H'; return; }
-    state.canvas.width = w; state.canvas.height = h;
-    initStage(); renderAll();
-    fitStageToHost();
-    msg.textContent='✅ Canvas aggiornato';
-  }));
-
-  // ---- Export ---------------------------------------------------------------
-  exportPNG.onclick = () => safe(() => {
-    const oldScale = stage.scaleX() || 1, oldPos = stage.position();
-    stage.scale({x:1,y:1}); stage.position({x:0,y:0});
-    const dataURL = stage.toDataURL({ pixelRatio: 2 });
-    stage.scale({x:oldScale,y:oldScale}); stage.position(oldPos);
-    saveAs(dataURL, 'ledwall-mapper.png');
-  });
-  exportSVG.onclick = () => safe(() => {
-    const svgParts = [];
-    const cx = padding, cy = padding, cw = state.canvas.width, ch = state.canvas.height;
-    svgParts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${cw}" height="${ch}">`);
-    svgParts.push(`<rect x="0" y="0" width="${cw}" height="${ch}" fill="#0c0c0c" />`);
-    for (const c of state.compositions) {
-      const x = c.x - cx, y = c.y - cy, w = c.cols*c.tileW, h = c.rows*c.tileH;
-      svgParts.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#3aa" stroke-dasharray="4,4" />`);
-      for (let xx = c.tileW; xx < w; xx += c.tileW) svgParts.push(`<line x1="${x+xx}" y1="${y}" x2="${x+xx}" y2="${y+h}" stroke="#1e3f3f" stroke-width="1" />`);
-      for (let yy = c.tileH; yy < h; yy += c.tileH) svgParts.push(`<line x1="${x}" y1="${y+yy}" x2="${x+w}" y2="${y+yy}" stroke="#1e3f3f" stroke-width="1" />`);
-      svgParts.push(`<text x="${x+4}" y="${y+14}" fill="#ddd" font-size="12">${w}×${h}px • (${x},${y})</text>`);
-      svgParts.push(`<text x="${x}" y="${y + h/2}" fill="#eee" font-size="14" text-anchor="middle" dominant-baseline="middle" transform="translate(${x + w/2},0)">${c.name}</text>`);
+    const b = { x:nv.x, y:nv.y, w:nv.cols*nv.tileW, h:nv.rows*nv.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+    if (!clampToCanvas(b) || collidesAny(id,b)) { msg.textContent='❌ Sovrapposizione o fuori canvas'; return; }
+    Object.assign(c, nv);
+    renderAll(); msg.textContent='✅ Aggiornata';
+  }
+  function duplicate(id){
+    const src = state.compositions.find(x=>x.id===id);
+    const w=src.cols*src.tileW, h=src.rows*src.tileH;
+    const right = rightmost();
+    let pt = right ? { x:right.x2+0, y:right.y } : { x:10, y:10 };
+    let B = { x:pt.x, y:pt.y, w,h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+    if (!clampToCanvas(B) || collidesAny('new',B)){
+      const fit = findFirstFit(w,h);
+      if (!fit) { msg.textContent='❌ Nessuno spazio libero nel canvas'; return; }
+      B.x=fit.x; B.y=fit.y;
     }
-    svgParts.push(`</svg>`);
-    const blob = new Blob([svgParts.join("")], {type:'image/svg+xml;charset=utf-8'});
-    saveAs(blob, 'ledwall-mapper.svg');
-  });
-  exportJSON.onclick = () => safe(() => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
-    saveAs(blob, 'project.json');
-  });
-  exportCSV.onclick = () => safe(() => {
-    const rows = [];
-    for (const comp of state.compositions) {
-      for (let r=0; r<comp.rows; r++) {
-        for (let c=0; c<comp.cols; c++) {
-          const x = comp.x + c*comp.tileW - padding;
-          const y = comp.y + r*comp.tileH - padding;
-          rows.push({ projectId: state.projectId, compId: comp.id, compName: comp.name, tileId: `${comp.id}-${r}-${c}`, row: r, col: c, x, y, width: comp.tileW, height: comp.tileH, rotation: 0 });
-        }
-      }
-    }
-    const csv = Papa.unparse(rows);
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    saveAs(blob, 'tiles.csv');
-  });
+    const nc = { ...src, id:uid(), name:src.name+' Copy', x:B.x, y:B.y };
+    state.compositions.push(nc); state.selectedId=nc.id; renderAll();
+  }
+  function remove(id){ state.compositions = state.compositions.filter(x=>x.id!==id); if (state.selectedId===id) state.selectedId=null; renderAll(); }
 
-  // ---- Persistenza ----------------------------------------------------------
-  function saveAutosafe() { localStorage.setItem('ledwall.project', JSON.stringify(state)); }
-  saveBtn.onclick = saveAutosafe;
-  loadBtn.onclick = () => safe(() => {
-    const raw = localStorage.getItem('ledwall.project');
-    if (!raw) { msg.textContent='Nessun salvataggio trovato.'; return; }
+  // ---------- Persistenza ----------
+  saveBtn.onclick = () => { localStorage.setItem('ledwall.vanilla.project', JSON.stringify(state)); msg.textContent='💾 Salvato'; };
+  loadBtn.onclick = () => {
+    const raw = localStorage.getItem('ledwall.vanilla.project');
+    if (!raw) { msg.textContent='Nessun salvataggio.'; return; }
     const data = JSON.parse(raw);
     Object.assign(state, data);
-    initStage(); renderAll(); fitStageToHost();
-    msg.textContent='✅ Progetto caricato';
-  });
-  clearBtn.onclick = () => safe(() => {
-    state.projectId = uid(); state.compositions = []; state.selectedId = null;
-    renderAll(); saveAutosafe(); msg.textContent='✅ Nuovo progetto';
-  });
+    applyCanvasSize(state.canvas.w, state.canvas.h);
+    renderAll(); msg.textContent='✅ Caricato';
+  };
+  clearBtn.onclick = () => { state.compositions=[]; state.selectedId=null; renderAll(); msg.textContent='✅ Nuovo'; };
 
-  // ---- Fit & zoom helpers ---------------------------------------------------
-  function fitStageToHost(){
-    const hostRect=stageHost.getBoundingClientRect();
-    const targetW=state.canvas.width+20; const targetH=state.canvas.height+20;
-    const sx=hostRect.width/targetW; const sy=(hostRect.height||1)/targetH;
-    const s=Math.min(sx,sy,1);
-    stage.scale({x:s,y:s});
-    const offsetX=(hostRect.width-targetW*s)/2; const offsetY=(hostRect.height-targetH*s)/2;
-    stage.position({x:offsetX,y:offsetY});
-    stage.batchDraw();
-  }
-  function zoomAtPointer(newScale,pointer){
-    const oldScale=stage.scaleX()||1;
-    const mousePointTo={x:(pointer.x-stage.x())/oldScale,y:(pointer.y-stage.y())/oldScale};
-    stage.scale({x:newScale,y:newScale});
-    const newPos={x:pointer.x-mousePointTo.x*newScale,y:pointer.y-mousePointTo.y*newScale};
-    stage.position(newPos); stage.batchDraw();
-  }
-  fitBtn.onclick=()=>safe(fitStageToHost); zoom1Btn.onclick=()=>safe(()=>{stage.scale({x:1,y:1});stage.position({x:0,y:0});stage.batchDraw();});
+  // ---------- Event wiring ----------
+  preset.onchange = () => { if(!preset.value) return; const [w,h] = preset.value.split('x').map(Number); canvasW.value=w; canvasH.value=h; };
+  apply.onclick = () => { const w=+canvasW.value||1920, h=+canvasH.value||1080; applyCanvasSize(w,h); };
+  fit.onclick = fitToViewport; zoom1.onclick = zoom100;
+  add.onclick = addComp; update.onclick = updateComp;
 
-  // ---- Resize observer ------------------------------------------------------
-  const ro=new ResizeObserver(()=>{ if(!stage) return; stage.size({width:stageHost.clientWidth||600,height:stageHost.clientHeight||400}); fitStageToHost(); });
-  ro.observe(stageHost);
-
-  // ---- Boot -----------------------------------------------------------------
-  safe(initStage);
-  safe(renderAll);
-  safe(fitStageToHost);
+  // ---------- Boot ----------
+  // default 1920×1080 già nei campi
+  canvasW.value = state.canvas.w; canvasH.value = state.canvas.h;
+  applyCanvasSize(state.canvas.w, state.canvas.h);
+  renderAll();
 })();
 </script>
 </body>
