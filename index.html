@@ -33,7 +33,7 @@
       background-image: linear-gradient(to right, #181c24 1px, transparent 1px), linear-gradient(to bottom, #181c24 1px, transparent 1px);
       background-size:100px 100px, 100px 100px; }
 
-    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.03); cursor:grab; touch-action: none; -webkit-user-select:none; user-select:none; }
+    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.08); cursor:grab; touch-action:none; -webkit-user-select:none; user-select:none; }
     .comp.dragging { cursor:grabbing; }
     .comp.selected { border-color:#7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
     .comp .name { position:absolute; left:4px; right:4px; text-align:center; font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; pointer-events:none; }
@@ -166,24 +166,25 @@
   function renderComp(c){ const b=bbox(c); const el=document.createElement('div'); el.className='comp'+(state.selectedId===c.id?' selected':''); el.style.left=b.x+'px'; el.style.top=b.y+'px'; el.style.width=b.w+'px'; el.style.height=b.h+'px'; el.dataset.id=c.id;
     const info=document.createElement('div'); info.className='info'; info.textContent=`${b.w}×${b.h}px • (${c.x-10},${c.y-10})`; el.appendChild(info);
     const nameEl=document.createElement('div'); nameEl.className='name'; nameEl.textContent=c.name; el.appendChild(nameEl);
+
+    // drag handlers
     el.addEventListener('mousedown',(e)=>startDrag(e,c.id));
     el.addEventListener('touchstart',(e)=>startDrag(e,c.id),{passive:false});
-    el.addEventListener('click',()=>select(c.id));
     screen.appendChild(el);
   }
 
   function refreshList(){ list.innerHTML=''; for(const c of state.compositions){ const li=document.createElement('li'); li.textContent=c.name; li.onclick=()=>select(c.id); list.append(li); } }
 
   // --- Drag&Drop con mouse+touch ---
-  let isDragging=false, dragId=null, offsetX=0, offsetY=0;
+  let dragData=null;
 
   function getEventPos(e){ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; }
 
-  function startDrag(e,id){ e.preventDefault(); select(id); const c=state.compositions.find(x=>x.id===id); if(!c)return; const pos=getEventPos(e); const rect=screen.getBoundingClientRect(); const x=(pos.x-rect.left)/state.scale; const y=(pos.y-rect.top)/state.scale; offsetX=x-c.x; offsetY=y-c.y; isDragging=true; dragId=id; document.addEventListener('mousemove',onDragMove); document.addEventListener('mouseup',endDrag); document.addEventListener('touchmove',onDragMove,{passive:false}); document.addEventListener('touchend',endDrag); }
+  function startDrag(e,id){ e.preventDefault(); select(id); const c=state.compositions.find(x=>x.id===id); if(!c)return; const pos=getEventPos(e); const rect=screen.getBoundingClientRect(); const x=(pos.x-rect.left)/state.scale; const y=(pos.y-rect.top)/state.scale; dragData={id,offsetX:x-c.x,offsetY:y-c.y}; document.addEventListener('mousemove',onDragMove); document.addEventListener('mouseup',endDrag); document.addEventListener('touchmove',onDragMove,{passive:false}); document.addEventListener('touchend',endDrag); }
 
-  function onDragMove(e){ if(!isDragging) return; e.preventDefault(); const c=state.compositions.find(x=>x.id===dragId); if(!c)return; const pos=getEventPos(e); const rect=screen.getBoundingClientRect(); let x=(pos.x-rect.left)/state.scale-offsetX; let y=(pos.y-rect.top)/state.scale-offsetY; c.x=Math.max(10,Math.min(x,10+state.canvas.w-c.cols*c.tileW)); c.y=Math.max(10,Math.min(y,10+state.canvas.h-c.rows*c.tileH)); renderAll(); }
+  function onDragMove(e){ if(!dragData) return; e.preventDefault(); const c=state.compositions.find(x=>x.id===dragData.id); if(!c)return; const pos=getEventPos(e); const rect=screen.getBoundingClientRect(); let x=(pos.x-rect.left)/state.scale-dragData.offsetX; let y=(pos.y-rect.top)/state.scale-dragData.offsetY; c.x=Math.max(10,Math.min(x,10+state.canvas.w-c.cols*c.tileW)); c.y=Math.max(10,Math.min(y,10+state.canvas.h-c.rows*c.tileH)); renderAll(); }
 
-  function endDrag(){ isDragging=false; dragId=null; document.removeEventListener('mousemove',onDragMove); document.removeEventListener('mouseup',endDrag); document.removeEventListener('touchmove',onDragMove); document.removeEventListener('touchend',endDrag); }
+  function endDrag(){ dragData=null; document.removeEventListener('mousemove',onDragMove); document.removeEventListener('mouseup',endDrag); document.removeEventListener('touchmove',onDragMove); document.removeEventListener('touchend',endDrag); }
 
   function select(id){ state.selectedId=id; const c=state.compositions.find(x=>x.id===id); if(c){ name.value=c.name; cols.value=c.cols; rows.value=c.rows; tileW.value=c.tileW; tileH.value=c.tileH; posX.value=c.x-10; posY.value=c.y-10; } renderAll(); }
 
