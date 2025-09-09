@@ -27,10 +27,10 @@
 
     /* Viewport che scala il canvas per entrare nello spazio disponibile */
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
-    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; }
+    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action: none; }
 
     /* Screen: l'area di lavoro in pixel reali */
-    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; }
+    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; touch-action: none; }
     /* Grid di sfondo 100px */
     #screen::before {
       content:""; position:absolute; inset:0; pointer-events:none;
@@ -41,7 +41,7 @@
     }
 
     /* Composizione */
-    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.03); cursor:move; }
+    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.03); cursor:move; touch-action: none; }
     .comp.selected { border-color:#7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
     /* Griglia interna basata su tile size (impostata inline) */
     .comp .name { position:absolute; left:4px; right:4px; text-align:center; font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
@@ -257,7 +257,7 @@
     el.appendChild(name);
 
     // interazioni
-    el.addEventListener('pointerdown', (e)=> startDrag(e, c.id));
+    el.addEventListener('pointerdown', (e)=> startDrag(e, c.id), { passive: false });
     el.addEventListener('click', ()=> select(c.id));
 
     screen.appendChild(el);
@@ -285,6 +285,7 @@
   // ---------- Drag manuale robusto ----------
   let drag = null; // {id,dx,dy}
   function startDrag(e, id){
+    e.preventDefault();
     select(id);
     const c = state.compositions.find(x=>x.id===id);
     const b = bbox(c);
@@ -292,11 +293,14 @@
     // posizione puntatore relativa allo screenWrap scalato
     const px = (e.clientX - vpRect.left) / state.scale - 10; // -10 padding
     const py = (e.clientY - vpRect.top)  / state.scale - 10;
-    drag = { id, dx: px - c.x + 10, dy: py - c.y + 10 };
-    window.addEventListener('pointermove', onDragMove);
+    drag = { id, dx: px - c.x + 10, dy: py - c.y + 10, el: e.currentTarget, pointerId: e.pointerId };
+    drag.el?.setPointerCapture?.(e.pointerId);
+    window.addEventListener('pointermove', onDragMove, { passive: false });
     window.addEventListener('pointerup', onDragEnd, { once:true });
   }
   function onDragMove(e){
+    if (drag?.pointerId != null && e.pointerId !== drag.pointerId) return; // ignora altre dita/penne
+    e.preventDefault();
     if (!drag) return;
     const c = state.compositions.find(x=>x.id===drag.id);
     const vpRect = viewport.getBoundingClientRect();
@@ -315,7 +319,8 @@
     c.x = b.x; c.y = b.y;
     renderAll();
   }
-  function onDragEnd(){
+  function onDragEnd(e){
+    if (drag?.el && drag.pointerId!=null) { drag.el.releasePointerCapture?.(drag.pointerId); }
     const id = drag?.id; drag=null;
     if (!id) return;
     const c = state.compositions.find(x=>x.id===id);
