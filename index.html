@@ -309,17 +309,36 @@
     let nx = Math.round(px - drag.dx);
     let ny = Math.round(py - drag.dy);
     const b = { x:nx, y:ny, w:c.cols*c.tileW, h:c.rows*c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-    // clamp ai bordi dello screen (ricorda: screen parte a +10,+10)
     if (b.x < 10) b.x = 10;
     if (b.y < 10) b.y = 10;
     if (b.x2 > 10 + state.canvas.w) b.x = 10 + state.canvas.w - b.w;
     if (b.y2 > 10 + state.canvas.h) b.y = 10 + state.canvas.h - b.h;
-
-    // disegna live (anche se magari collide, decidiamo alla fine)
+    // aggiorna stato + DOM senza re-render completo (stabile su desktop)
     c.x = b.x; c.y = b.y;
-    renderAll();
+    if (drag.el) {
+      drag.el.style.left = c.x + 'px';
+      drag.el.style.top  = c.y + 'px';
+      const info = drag.el.querySelector('.info');
+      if (info) info.textContent = `${b.w}×${b.h}px • (${c.x-10},${c.y-10})`;
+    }
   }
   function onDragEnd(e){
+    if (drag?.el && drag.pointerId!=null) { drag.el.releasePointerCapture?.(drag.pointerId); }
+    document.removeEventListener('pointermove', onDragMove, { passive: false });
+    const id = drag?.id; drag=null;
+    if (!id) return;
+    const c = state.compositions.find(x=>x.id===id);
+    const b = bbox(c);
+    if (collidesAny(id, b)){
+      const prev = findFirstFit(b.w, b.h);
+      if (prev){ c.x=prev.x; c.y=prev.y; }
+      else msg.textContent = '❌ Nessuno spazio libero';
+    }
+    renderAll();
+  }
+  function onDragCancel(){ drag=null; document.removeEventListener('pointermove', onDragMove, { passive: false }); }
+
+  // ---------- CRUD composizioni(e){
     if (drag?.el && drag.pointerId!=null) { drag.el.releasePointerCapture?.(drag.pointerId); }
     const id = drag?.id; drag=null;
     if (!id) return;
