@@ -3,204 +3,74 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Cross‑platform</title>
+  <title>Drag Test</title>
   <style>
-    :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; }
-    * { box-sizing: border-box; }
-    html, body { height:100%; }
-    body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; overscroll-behavior: none; }
-    header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
-    main { display:flex; gap:12px; padding:12px; }
-    .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
-    #left { width:360px; display:flex; flex-direction:column; gap:12px; }
-    #work { flex:1; display:flex; flex-direction:column; gap:10px; }
-    h3 { margin:0 0 8px; font-size:16px; }
-    label { display:block; margin:6px 0 4px; color:#cfd3d7; }
-    input, select, button { border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink); padding:8px; }
-    input[type=number] { width:100%; }
-    button { background:var(--acc); color:#001018; font-weight:700; cursor:pointer; }
-    button.secondary { background:#0f1115; color:var(--ink); }
-    button.warn { background:var(--warn); color:#1a0f00; }
-    .row { display:flex; gap:8px; }
-    .row > * { flex:1; }
-    ul { list-style:none; padding:0; margin:0; }
-    li { padding:8px 4px; border-top:1px dashed var(--border); display:flex; justify-content:space-between; gap:8px; align-items:center; }
-
-    #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; touch-action: none; }
-    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action: none; }
-    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; touch-action: none; -webkit-user-select:none; user-select:none; }
-    #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
-      background-image: linear-gradient(to right, #181c24 1px, transparent 1px), linear-gradient(to bottom, #181c24 1px, transparent 1px);
-      background-size:100px 100px, 100px 100px; }
-
-    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.08); cursor:grab; touch-action:none; -webkit-user-select:none; user-select:none; }
-    .comp.dragging { cursor:grabbing; }
-    .comp.selected { border-color:#7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
-    .comp .name { position:absolute; left:4px; right:4px; text-align:center; font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; pointer-events:none; }
-    .comp .info { position:absolute; left:4px; top:4px; font-size:12px; color:#d6e8ff; text-shadow:0 1px 2px #000; pointer-events:none; }
+    body { margin:0; height:100vh; display:flex; justify-content:center; align-items:center; background:#111; }
+    #playground { position:relative; width:90vw; height:90vh; background:#222; border:2px solid #555; overflow:hidden; touch-action:none; }
+    #box { position:absolute; left:50px; top:50px; width:150px; height:150px; background:#45b8ff; border-radius:8px; cursor:grab; touch-action:none; user-select:none; }
+    #box.dragging { cursor:grabbing; }
   </style>
 </head>
 <body>
-  <header>
-    <div class="row" style="align-items:center; flex-wrap:wrap">
-      <div style="font-weight:800">LEDWall Mapper – Cross‑platform</div>
-      <div class="row" style="flex:1; justify-content:flex-end; gap:6px">
-        <select id="preset">
-          <option value="">Preset</option>
-          <option>1280x720</option>
-          <option selected>1920x1080</option>
-          <option>2560x1440</option>
-          <option>3840x2160</option>
-          <option>7680x4320</option>
-        </select>
-        <input id="canvasW" type="number" placeholder="W" />
-        <input id="canvasH" type="number" placeholder="H" />
-        <button id="apply" class="secondary">Applica</button>
-        <button id="fit" class="secondary">Fit</button>
-        <button id="zoom1" class="secondary">100%</button>
-      </div>
-    </div>
-  </header>
-
-  <main>
-    <section id="left">
-      <div class="panel">
-        <h3>Nuova / Modifica composizione</h3>
-        <label>Nome</label>
-        <input id="name" type="text" placeholder="Ledwall Main" />
-        <div class="row">
-          <div>
-            <label>Colonne (C)</label>
-            <input id="cols" type="number" min="1" value="12">
-          </div>
-          <div>
-            <label>Righe (R)</label>
-            <input id="rows" type="number" min="1" value="6">
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>Tile W (px)</label>
-            <input id="tileW" type="number" min="1" value="128">
-          </div>
-          <div>
-            <label>Tile H (px)</label>
-            <input id="tileH" type="number" min="1" value="128">
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>Pos X</label>
-            <input id="posX" type="number" value="0">
-          </div>
-          <div>
-            <label>Pos Y</label>
-            <input id="posY" type="number" value="0">
-          </div>
-        </div>
-        <div class="row">
-          <button id="add">Aggiungi</button>
-          <button id="update" class="secondary">Aggiorna</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h3>Composizioni</h3>
-        <ul id="list"></ul>
-        <div class="row" style="margin-top:8px">
-          <button id="save" class="secondary">Salva</button>
-          <button id="load" class="secondary">Carica</button>
-          <button id="clear" class="warn">Nuovo</button>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h3>Info</h3>
-        <div id="message" style="min-height:1.2em;color:#9cd1ff"></div>
-      </div>
-    </section>
-
-    <section id="work">
-      <div class="panel" style="display:flex; flex-direction:column; gap:8px; min-height:72vh">
-        <div class="row" style="align-items:center; flex-wrap:wrap">
-          <div>Canvas: <span id="canvasInfo">–</span></div>
-          <div style="margin-left:auto" class="row">
-            <span class="muted">Drag con dito/mouse. Offset rispetto al top-left.</span>
-          </div>
-        </div>
-        <div id="viewport">
-          <div id="screenWrap">
-            <div id="screen"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">HTML/CSS/JS con gestione mouse+touch separata per compatibilità iPhone + Chrome desktop.</div>
-  </footer>
+  <div id="playground">
+    <div id="box"></div>
+  </div>
 
 <script>
 (() => {
-  const state = { canvas: { w: 1920, h: 1080 }, compositions: [], selectedId: null, scale: 1 };
+  const box = document.getElementById('box');
+  const playground = document.getElementById('playground');
 
-  const $ = (id) => document.getElementById(id);
-  const preset = $('preset'), canvasW=$('canvasW'), canvasH=$('canvasH');
-  const apply=$('apply'), fit=$('fit'), zoom1=$('zoom1');
-  const name=$('name'), cols=$('cols'), rows=$('rows'), tileW=$('tileW'), tileH=$('tileH'), posX=$('posX'), posY=$('posY');
-  const add=$('add'), update=$('update');
-  const list=$('list'), msg=$('message'), canvasInfo=$('canvasInfo');
-  const viewport=$('viewport'), screenWrap=$('screenWrap'), screen=$('screen');
-  const saveBtn=$('save'), loadBtn=$('load'), clearBtn=$('clear');
+  let dragData = null;
 
-  function applyCanvasSize(w,h){ state.canvas.w = w; state.canvas.h = h; screen.style.width=w+"px"; screen.style.height=h+"px"; canvasInfo.textContent=`${w}×${h}px`; fitToViewport(); }
-  function fitToViewport(){ const vw=viewport.clientWidth-16, vh=viewport.clientHeight-16; const sx=vw/(state.canvas.w+20), sy=vh/(state.canvas.h+20); state.scale=Math.min(sx,sy,1); screenWrap.style.transform=`scale(${state.scale})`; }
-  function zoom100(){ state.scale=1; screenWrap.style.transform=`scale(1)`; }
-
-  const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
-  const bbox = (c) => ({ x:c.x, y:c.y, w:c.cols*c.tileW, h:c.rows*c.tileH });
-
-  function renderAll(){ [...screen.querySelectorAll('.comp')].forEach(el=>el.remove()); for(const c of state.compositions) renderComp(c); refreshList(); }
-
-  function renderComp(c){ const b=bbox(c); const el=document.createElement('div'); el.className='comp'+(state.selectedId===c.id?' selected':''); el.style.left=b.x+'px'; el.style.top=b.y+'px'; el.style.width=b.w+'px'; el.style.height=b.h+'px'; el.dataset.id=c.id;
-    const info=document.createElement('div'); info.className='info'; info.textContent=`${b.w}×${b.h}px • (${c.x-10},${c.y-10})`; el.appendChild(info);
-    const nameEl=document.createElement('div'); nameEl.className='name'; nameEl.textContent=c.name; el.appendChild(nameEl);
-
-    // drag handlers
-    el.addEventListener('mousedown',(e)=>startDrag(e,c.id));
-    el.addEventListener('touchstart',(e)=>startDrag(e,c.id),{passive:false});
-    screen.appendChild(el);
+  function getEventPos(e) {
+    if (e.touches && e.touches[0]) e = e.touches[0];
+    return { x: e.clientX, y: e.clientY };
   }
 
-  function refreshList(){ list.innerHTML=''; for(const c of state.compositions){ const li=document.createElement('li'); li.textContent=c.name; li.onclick=()=>select(c.id); list.append(li); } }
+  function startDrag(e) {
+    e.preventDefault();
+    const pos = getEventPos(e);
+    const rect = box.getBoundingClientRect();
+    dragData = {
+      offsetX: pos.x - rect.left,
+      offsetY: pos.y - rect.top
+    };
+    box.classList.add('dragging');
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchmove', onDragMove, { passive: false });
+    document.addEventListener('touchend', endDrag);
+  }
 
-  // --- Drag&Drop con mouse+touch ---
-  let dragData=null;
+  function onDragMove(e) {
+    if (!dragData) return;
+    e.preventDefault();
+    const pos = getEventPos(e);
+    const pgRect = playground.getBoundingClientRect();
 
-  function getEventPos(e){ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; }
+    let newX = pos.x - pgRect.left - dragData.offsetX;
+    let newY = pos.y - pgRect.top - dragData.offsetY;
 
-  function startDrag(e,id){ e.preventDefault(); select(id); const c=state.compositions.find(x=>x.id===id); if(!c)return; const pos=getEventPos(e); const rect=screen.getBoundingClientRect(); const x=(pos.x-rect.left)/state.scale; const y=(pos.y-rect.top)/state.scale; dragData={id,offsetX:x-c.x,offsetY:y-c.y}; document.addEventListener('mousemove',onDragMove); document.addEventListener('mouseup',endDrag); document.addEventListener('touchmove',onDragMove,{passive:false}); document.addEventListener('touchend',endDrag); }
+    // Limiti dentro al playground
+    newX = Math.max(0, Math.min(newX, pgRect.width - box.offsetWidth));
+    newY = Math.max(0, Math.min(newY, pgRect.height - box.offsetHeight));
 
-  function onDragMove(e){ if(!dragData) return; e.preventDefault(); const c=state.compositions.find(x=>x.id===dragData.id); if(!c)return; const pos=getEventPos(e); const rect=screen.getBoundingClientRect(); let x=(pos.x-rect.left)/state.scale-dragData.offsetX; let y=(pos.y-rect.top)/state.scale-dragData.offsetY; c.x=Math.max(10,Math.min(x,10+state.canvas.w-c.cols*c.tileW)); c.y=Math.max(10,Math.min(y,10+state.canvas.h-c.rows*c.tileH)); renderAll(); }
+    box.style.left = newX + 'px';
+    box.style.top = newY + 'px';
+  }
 
-  function endDrag(){ dragData=null; document.removeEventListener('mousemove',onDragMove); document.removeEventListener('mouseup',endDrag); document.removeEventListener('touchmove',onDragMove); document.removeEventListener('touchend',endDrag); }
+  function endDrag() {
+    dragData = null;
+    box.classList.remove('dragging');
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', endDrag);
+    document.removeEventListener('touchmove', onDragMove);
+    document.removeEventListener('touchend', endDrag);
+  }
 
-  function select(id){ state.selectedId=id; const c=state.compositions.find(x=>x.id===id); if(c){ name.value=c.name; cols.value=c.cols; rows.value=c.rows; tileW.value=c.tileW; tileH.value=c.tileH; posX.value=c.x-10; posY.value=c.y-10; } renderAll(); }
-
-  function addComp(){ const r=+rows.value,c=+cols.value,tw=+tileW.value,th=+tileH.value; const nm=(name.value||'Comp').trim(); const comp={id:uid(),name:nm,cols:c,rows:r,tileW:tw,tileH:th,x:10+(+posX.value||0),y:10+(+posY.value||0)}; state.compositions.push(comp); state.selectedId=comp.id; renderAll(); }
-  function updateComp(){ const id=state.selectedId; if(!id)return; const c=state.compositions.find(x=>x.id===id); c.name=name.value; c.cols=+cols.value; c.rows=+rows.value; c.tileW=+tileW.value; c.tileH=+tileH.value; c.x=10+(+posX.value||0); c.y=10+(+posY.value||0); renderAll(); }
-
-  saveBtn.onclick=()=>{localStorage.setItem('ledwall.project',JSON.stringify(state));};
-  loadBtn.onclick=()=>{const raw=localStorage.getItem('ledwall.project'); if(!raw)return; Object.assign(state,JSON.parse(raw)); applyCanvasSize(state.canvas.w,state.canvas.h); renderAll();};
-  clearBtn.onclick=()=>{state.compositions=[]; state.selectedId=null; renderAll();};
-
-  preset.onchange=()=>{if(!preset.value)return;const[w,h]=preset.value.split('x').map(Number);canvasW.value=w;canvasH.value=h;};
-  apply.onclick=()=>{const w=+canvasW.value||1920,h=+canvasH.value||1080;applyCanvasSize(w,h);};
-  fit.onclick=fitToViewport; zoom1.onclick=zoom100;
-  add.onclick=addComp; update.onclick=updateComp;
-
-  canvasW.value=state.canvas.w; canvasH.value=state.canvas.h; applyCanvasSize(state.canvas.w,state.canvas.h); renderAll();
+  box.addEventListener('mousedown', startDrag);
+  box.addEventListener('touchstart', startDrag, { passive: false });
 })();
 </script>
 </body>
