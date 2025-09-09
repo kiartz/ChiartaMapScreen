@@ -3,11 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Vanilla</title>
+  <title>LEDWall Mapper – Cross‑platform</title>
   <style>
     :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; }
     * { box-sizing: border-box; }
-    body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    html, body { height:100%; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; overscroll-behavior: none; }
     header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
     main { display:flex; gap:12px; padding:12px; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
@@ -26,7 +27,7 @@
     li { padding:8px 4px; border-top:1px dashed var(--border); display:flex; justify-content:space-between; gap:8px; align-items:center; }
 
     /* Viewport che scala il canvas per entrare nello spazio disponibile */
-    #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
+    #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; touch-action: none; }
     #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action: none; }
 
     /* Screen: l'area di lavoro in pixel reali */
@@ -41,17 +42,19 @@
     }
 
     /* Composizione */
-    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.03); cursor:move; touch-action: none; -webkit-user-select:none; user-select:none; }
+    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.03); cursor:grab; touch-action: none; -webkit-user-select:none; user-select:none; }
+    .comp.dragging { cursor:grabbing; }
     .comp.selected { border-color:#7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
-    /* Griglia interna basata su tile size (impostata inline) */
     .comp .name { position:absolute; left:4px; right:4px; text-align:center; font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
     .comp .info { position:absolute; left:4px; top:4px; font-size:12px; color:#d6e8ff; text-shadow:0 1px 2px #000; }
+
+    .muted { color:var(--muted); }
   </style>
 </head>
 <body>
   <header>
     <div class="row" style="align-items:center; flex-wrap:wrap">
-      <div style="font-weight:800">LEDWall Mapper – Vanilla</div>
+      <div style="font-weight:800">LEDWall Mapper – Cross‑platform</div>
       <div class="row" style="flex:1; justify-content:flex-end; gap:6px">
         <select id="preset">
           <option value="">Preset</option>
@@ -123,6 +126,12 @@
       </div>
 
       <div class="panel">
+        <h3>Opzioni</h3>
+        <label><input id="snap" type="checkbox" checked> Snap alla griglia delle tile</label>
+        <label><input id="avoidOverlap" type="checkbox" checked> Evita sovrapposizioni</label>
+      </div>
+
+      <div class="panel">
         <h3>Info</h3>
         <div id="message" style="min-height:1.2em;color:#9cd1ff"></div>
       </div>
@@ -133,7 +142,7 @@
         <div class="row" style="align-items:center; flex-wrap:wrap">
           <div>Canvas: <span id="canvasInfo">–</span></div>
           <div style="margin-left:auto" class="row">
-            <span class="muted" style="color:#a0a6ad">Drag, nessuna sovrapposizione, offset riferito al top-left</span>
+            <span class="muted">Drag con dito/mouse. Niente sovrapposizioni. Offset rispetto al top-left.</span>
           </div>
         </div>
         <div id="viewport">
@@ -146,7 +155,7 @@
   </main>
 
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Vanilla build: HTML/CSS/JS senza librerie di terze parti per massima compatibilità desktop/mobile.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Build HTML/CSS/JS puro con Pointer Events per compatibilità iPhone + Chrome desktop.</div>
   </footer>
 
 <script>
@@ -156,7 +165,8 @@
     canvas: { w: 1920, h: 1080 },
     compositions: [], // {id,name,cols,rows,tileW,tileH,x,y}
     selectedId: null,
-    scale: 1
+    scale: 1,
+    dragThreshold: 3, // px per distinguere tap da drag
   };
 
   // ---------- Helpers DOM ----------
@@ -168,6 +178,7 @@
   const list=$('list'), msg=$('message'), canvasInfo=$('canvasInfo');
   const viewport=$('viewport'), screenWrap=$('screenWrap'), screen=$('screen');
   const saveBtn=$('save'), loadBtn=$('load'), clearBtn=$('clear');
+  const snap=$('snap'), avoidOverlap=$('avoidOverlap');
 
   // ---------- Init canvas ----------
   function applyCanvasSize(w,h){
@@ -178,7 +189,6 @@
     fitToViewport();
   }
   function fitToViewport(){
-    // scala lo screen per entrare nel viewport lasciando 16px di margine
     const vw = viewport.clientWidth - 16;
     const vh = viewport.clientHeight - 16;
     const sx = vw / (state.canvas.w + 20);
@@ -195,7 +205,15 @@
   function overlaps(a,b){ return !(a.x2<=b.x||a.x>=b.x2||a.y2<=b.y||a.y>=b.y2); }
   function collidesAny(id, B){ return state.compositions.some(c => c.id!==id && overlaps(B, bbox(c))); }
 
-  // First-fit scan L->R, T->B
+  function snapToGrid(x, y, c) {
+    if (!snap.checked) return {x, y};
+    const gx = c.tileW; const gy = c.tileH;
+    const sx = Math.round((x-10) / gx) * gx + 10;
+    const sy = Math.round((y-10) / gy) * gy + 10;
+    return { x: sx, y: sy };
+  }
+
+  // Primo buco L->R, T->B
   function findFirstFit(w,h){
     const maxX = 10 + state.canvas.w - w;
     const maxY = 10 + state.canvas.h - h;
@@ -218,11 +236,8 @@
 
   // ---------- Render ----------
   function renderAll(){
-    // pulisci
     for (const el of [...screen.querySelectorAll('.comp')]) el.remove();
-    // composizioni
     for (const c of state.compositions) renderComp(c);
-    // lista
     refreshList();
   }
 
@@ -247,14 +262,13 @@
     info.textContent = `${b.w}×${b.h}px • (${c.x-10},${c.y-10})`;
     el.appendChild(info);
 
-    const name = document.createElement('div');
-    name.className = 'name';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'name';
     const fs = Math.max(16, Math.min(96, Math.floor(Math.min(b.w,b.h)*0.22)));
-    name.style.fontSize = fs + 'px';
-    // centro verticale
-    name.style.top = `calc(50% - ${fs/2}px)`;
-    name.textContent = c.name;
-    el.appendChild(name);
+    nameEl.style.fontSize = fs + 'px';
+    nameEl.style.top = `calc(50% - ${fs/2}px)`;
+    nameEl.textContent = c.name;
+    el.appendChild(nameEl);
 
     // interazioni
     el.addEventListener('pointerdown', (e)=> startDrag(e, c.id), { passive: false });
@@ -282,76 +296,101 @@
     }
   }
 
-// ---------- Drag universale (desktop + iPhone) ----------
-let drag = null; // { id, dx, dy, el, pointerId }
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && (navigator.maxTouchPoints||0) > 1);
+  // ---------- Drag universale (desktop + iPhone) ----------
+  let drag = null; // { id, dx, dy, el, pointerId, startX, startY, moved }
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && (navigator.maxTouchPoints||0) > 1);
 
-function pointerToCanvas(e) {
-  const vp = viewport.getBoundingClientRect();
-  // coordinate nello spazio scalato di screenWrap (0,0 = viewport)
-  const x = (e.clientX - vp.left) / state.scale;
-  const y = (e.clientY - vp.top)  / state.scale;
-  return { x, y };
-}
-
-function startDrag(e, id) {
-  e.preventDefault();          // blocca scroll/gesture
-  select(id);
-  const c = state.compositions.find(x => x.id === id);
-  const pt = pointerToCanvas(e);
-  // offset tra puntatore e top-left del riquadro
-  drag = { id, dx: pt.x - c.x, dy: pt.y - c.y, el: e.currentTarget, pointerId: e.pointerId };
-  if (!isIOS) drag.el?.setPointerCapture?.(e.pointerId);   // su iOS meglio senza capture
-  document.addEventListener('pointermove', onDragMove, { passive: false });
-  document.addEventListener('pointerup', onDragEnd,   { passive: false, once: true });
-  document.addEventListener('pointercancel', onDragEnd, { passive: false, once: true });
-}
-
-function onDragMove(e) {
-  if (!drag) return;
-  if (drag.pointerId != null && e.pointerId !== drag.pointerId) return; // ignora altre dita
-  e.preventDefault();    // IMPORTANTISSIMO (sblocca iPhone e trackpad)
-  const c = state.compositions.find(x => x.id === drag.id);
-  const pt = pointerToCanvas(e);
-
-  let nx = Math.round(pt.x - drag.dx);
-  let ny = Math.round(pt.y - drag.dy);
-
-  // vincoli ai bordi (canvas con offset 10,10)
-  const w = c.cols * c.tileW, h = c.rows * c.tileH;
-  if (nx < 10) nx = 10;
-  if (ny < 10) ny = 10;
-  if (nx + w > 10 + state.canvas.w) nx = 10 + state.canvas.w - w;
-  if (ny + h > 10 + state.canvas.h) ny = 10 + state.canvas.h - h;
-
-  // aggiorno SOLO il DOM dell’elemento in drag (niente rerender pieno)
-  c.x = nx; c.y = ny;
-  if (drag.el) {
-    drag.el.style.left = nx + 'px';
-    drag.el.style.top  = ny + 'px';
-    const info = drag.el.querySelector('.info');
-    if (info) info.textContent = `${w}×${h}px • (${nx-10},${ny-10})`;
+  function pointerToCanvas(e) {
+    const vp = viewport.getBoundingClientRect();
+    const x = (e.clientX - vp.left) / state.scale;
+    const y = (e.clientY - vp.top)  / state.scale;
+    return { x, y };
   }
-}
 
-function onDragEnd() {
-  if (drag?.el && drag.pointerId != null && !isIOS) drag.el.releasePointerCapture?.(drag.pointerId);
-  document.removeEventListener('pointermove', onDragMove, { passive: false });
-  const id = drag?.id;
-  drag = null;
-  if (!id) return;
-
-  // verifica collisioni/fuori canvas a fine drag
-  const c = state.compositions.find(x => x.id === id);
-  const b = { x:c.x, y:c.y, w:c.cols*c.tileW, h:c.rows*c.tileH,
-              get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-  if (state.compositions.some(o => o.id !== id && !(b.x2<=o.x || b.x>=o.x+o.cols*o.tileW || b.y2<=o.y || b.y>=o.y+o.rows*o.tileH))) {
-    // collisione: riposiziona nel primo buco
-    const fit = findFirstFit(b.w, b.h);
-    if (fit) { c.x = fit.x; c.y = fit.y; }
+  function startDrag(e, id) {
+    e.preventDefault(); // evita scrolling/zoom del browser
+    select(id);
+    const comp = state.compositions.find(x => x.id === id);
+    const pt = pointerToCanvas(e);
+    drag = {
+      id,
+      dx: pt.x - comp.x,
+      dy: pt.y - comp.y,
+      el: e.currentTarget,
+      pointerId: e.pointerId,
+      startX: pt.x,
+      startY: pt.y,
+      moved: false,
+    };
+    drag.el.classList.add('dragging');
+    if (!isIOS) drag.el.setPointerCapture?.(e.pointerId);
+    document.addEventListener('pointermove', onDragMove, { passive: false, capture: true });
+    document.addEventListener('pointerup', onDragEnd,   { passive: false, capture: true });
+    document.addEventListener('pointercancel', onDragEnd, { passive: false, capture: true });
+    document.addEventListener('lostpointercapture', onDragEnd, { passive: false, capture: true });
   }
-  renderAll(); // ridisegna tutto una sola volta alla fine
-}
+
+  let raf = null;
+  function onDragMove(e) {
+    if (!drag) return;
+    if (drag.pointerId != null && e.pointerId !== drag.pointerId) return; // ignora altre dita
+    e.preventDefault();
+    const comp = state.compositions.find(x => x.id === drag.id);
+    const pt = pointerToCanvas(e);
+
+    if (!drag.moved && (Math.abs(pt.x - drag.startX) > state.dragThreshold || Math.abs(pt.y - drag.startY) > state.dragThreshold)) {
+      drag.moved = true;
+    }
+
+    // aggiorna via rAF per fluidità
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      let nx = Math.round(pt.x - drag.dx);
+      let ny = Math.round(pt.y - drag.dy);
+
+      // snap opzionale
+      ({x:nx, y:ny} = snapToGrid(nx, ny, comp));
+
+      // vincoli ai bordi
+      const w = comp.cols * comp.tileW, h = comp.rows * comp.tileH;
+      nx = Math.max(10, Math.min(10 + state.canvas.w - w, nx));
+      ny = Math.max(10, Math.min(10 + state.canvas.h - h, ny));
+
+      comp.x = nx; comp.y = ny;
+      if (drag.el) {
+        drag.el.style.left = nx + 'px';
+        drag.el.style.top  = ny + 'px';
+        const info = drag.el.querySelector('.info');
+        if (info) info.textContent = `${w}×${h}px • (${nx-10},${ny-10})`;
+      }
+    });
+  }
+
+  function onDragEnd(e) {
+    if (!drag) return;
+    if (drag.el && drag.pointerId != null && !isIOS) drag.el.releasePointerCapture?.(drag.pointerId);
+    drag.el?.classList.remove('dragging');
+    document.removeEventListener('pointermove', onDragMove, true);
+    document.removeEventListener('pointerup', onDragEnd, true);
+    document.removeEventListener('pointercancel', onDragEnd, true);
+    document.removeEventListener('lostpointercapture', onDragEnd, true);
+
+    const id = drag.id;
+    const moved = drag.moved;
+    drag = null;
+
+    if (!moved) { return; } // tratta come semplice tap: niente snap/collisione
+
+    // verifica collisioni/fuori canvas a fine drag
+    const c = state.compositions.find(x => x.id === id);
+    const b = { x:c.x, y:c.y, w:c.cols*c.tileW, h:c.rows*c.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+
+    if (avoidOverlap.checked && state.compositions.some(o => o.id !== id && !(b.x2<=o.x || b.x>=o.x+o.cols*o.tileW || b.y2<=o.y || b.y>=o.y+o.rows*o.tileH))) {
+      const fit = findFirstFit(b.w, b.h);
+      if (fit) { c.x = fit.x; c.y = fit.y; }
+    }
+    renderAll();
+  }
 
   // ---------- CRUD composizioni ----------
   function select(id){
@@ -394,7 +433,7 @@ function onDragEnd() {
       y:10 + (+posY.value||0)
     };
     const b = { x:nv.x, y:nv.y, w:nv.cols*nv.tileW, h:nv.rows*nv.tileH, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-    if (!clampToCanvas(b) || collidesAny(id,b)) { msg.textContent='❌ Sovrapposizione o fuori canvas'; return; }
+    if (!clampToCanvas(b) || (avoidOverlap.checked && collidesAny(id,b))) { msg.textContent='❌ Sovrapposizione o fuori canvas'; return; }
     Object.assign(c, nv);
     renderAll(); msg.textContent='✅ Aggiornata';
   }
@@ -415,9 +454,9 @@ function onDragEnd() {
   function remove(id){ state.compositions = state.compositions.filter(x=>x.id!==id); if (state.selectedId===id) state.selectedId=null; renderAll(); }
 
   // ---------- Persistenza ----------
-  saveBtn.onclick = () => { localStorage.setItem('ledwall.vanilla.project', JSON.stringify(state)); msg.textContent='💾 Salvato'; };
+  saveBtn.onclick = () => { localStorage.setItem('ledwall.cross.project', JSON.stringify(state)); msg.textContent='💾 Salvato'; };
   loadBtn.onclick = () => {
-    const raw = localStorage.getItem('ledwall.vanilla.project');
+    const raw = localStorage.getItem('ledwall.cross.project');
     if (!raw) { msg.textContent='Nessun salvataggio.'; return; }
     const data = JSON.parse(raw);
     Object.assign(state, data);
@@ -432,8 +471,12 @@ function onDragEnd() {
   fit.onclick = fitToViewport; zoom1.onclick = zoom100;
   add.onclick = addComp; update.onclick = updateComp;
 
+  // ---------- Resize observer ----------
+  const ro = new ResizeObserver(() => fitToViewport());
+  ro.observe(viewport);
+  window.addEventListener('orientationchange', () => setTimeout(fitToViewport, 0));
+
   // ---------- Boot ----------
-  // default 1920×1080 già nei campi
   canvasW.value = state.canvas.w; canvasH.value = state.canvas.h;
   applyCanvasSize(state.canvas.w, state.canvas.h);
   renderAll();
