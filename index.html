@@ -299,6 +299,7 @@
   // ---------- Drag universale (desktop + iPhone) ----------
   let drag = null; // { id, dx, dy, el, pointerId, startX, startY, moved }
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && (navigator.maxTouchPoints||0) > 1);
+const supportsPointer = 'PointerEvent' in window;
 
   function pointerToCanvas(e) {
     const vp = viewport.getBoundingClientRect();
@@ -481,6 +482,24 @@
   applyCanvasSize(state.canvas.w, state.canvas.h);
   renderAll();
 })();
+// ---------- Touch fallback per iOS vecchi / problemi Pointer ----------
+  if (!supportsPointer) {
+    const toPointerLike = (t) => ({ clientX: t.clientX, clientY: t.clientY });
+    screen.addEventListener('touchstart', (e) => {
+      const target = e.target.closest('.comp');
+      if (!target) return;
+      const id = target.dataset.id;
+      const t = e.changedTouches[0];
+      startDrag({ preventDefault:()=>e.preventDefault(), clientX:t.clientX, clientY:t.clientY, currentTarget:target, pointerId:1 }, id);
+    }, { passive:false });
+    screen.addEventListener('touchmove', (e) => {
+      if (!drag) return;
+      const t = e.changedTouches[0];
+      onDragMove({ preventDefault:()=>e.preventDefault(), clientX:t.clientX, clientY:t.clientY, pointerId:1 });
+    }, { passive:false });
+    screen.addEventListener('touchend', (e) => { if (!drag) return; onDragEnd({}); }, { passive:false });
+    screen.addEventListener('touchcancel', (e) => { if (!drag) return; onDragEnd({}); }, { passive:false });
+  }
 </script>
 </body>
 </html>
