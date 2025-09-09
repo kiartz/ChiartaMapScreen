@@ -156,10 +156,14 @@
 
   // ---- Konva Stage & Layers -------------------------------------------------
   let stage, layerBg, layerComps;
+  const isTouchDevice = (() => {
+    return (('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0);
+  })();
   const padding = 10; // bordo canvas nel container Konva
 
   function safe(fn){
-    try { return fn(); } catch(e){ dbg.textContent = 'Errore: '+ e.message + '\n' + e.stack; console.error(e); msg.textContent='❌ Errore JS (vedi debug)'; }
+    try { return fn(); } catch(e){ dbg.textContent = 'Errore: '+ e.message + '
+' + e.stack; console.error(e); msg.textContent='❌ Errore JS (vedi debug)'; }
   }
 
   // Default 1920x1080 PRIMA di creare lo stage
@@ -251,7 +255,7 @@
 
   function renderComposition(comp){
     const b=bboxOf(comp);
-    const group=new Konva.Group({x:b.x,y:b.y,draggable:!comp.locked,id:comp.id});
+    const group=new Konva.Group({x:b.x,y:b.y,draggable: isTouchDevice && !comp.locked, id:comp.id});
 
     const rect=new Konva.Rect({
       x:0,y:0,width:b.w,height:b.h,
@@ -277,33 +281,73 @@
     nameText.y((b.h-nameText.height())/2);
     group.add(nameText);
 
-    const startDrag = () => { selectComposition(comp.id); group.startDrag(); };
-    rect.on('pointerdown', startDrag);
-    rect.on('mousedown', startDrag);
-
+    // Cursor feedback
     group.on('mouseenter mouseover', () => { stage.container().style.cursor = 'move'; });
     group.on('mouseleave mouseout', () => { stage.container().style.cursor = 'default'; });
 
-    group.on('dragmove', () => {
-      const p = group.position();
-      offText.text(`${size.w}×${size.h}px • (${Math.round(p.x)-padding},${Math.round(p.y)-padding})`);
-      layerComps.batchDraw();
-    });
-
-    group.on('dragend', () => {
-      const p = group.position();
-      const proposed = { x: snap(p.x), y: snap(p.y), w:b.w, h:b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
-      if (!canvasClamp(proposed) || collidesAny(comp.id, proposed)) {
-        group.position({ x: comp.x, y: comp.y });
-      } else {
-        comp.x = proposed.x; comp.y = proposed.y;
+    if (isTouchDevice) {
+      // Native Konva drag per touch
+      group.on('dragmove', () => {
+        const p = group.position();
+        offText.text(`${size.w}×${size.h}px • (${Math.round(p.x)-padding},${Math.round(p.y)-padding})`);
+        layerComps.batchDraw();
+      });
+      group.on('dragend', () => {
+        const p = group.position();
+        const proposed = { x: snap(p.x), y: snap(p.y), w:b.w, h:b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+        if (!canvasClamp(proposed) || collidesAny(comp.id, proposed)) {
+          group.position({ x: comp.x, y: comp.y });
+        } else {
+          comp.x = proposed.x; comp.y = proposed.y;
+        }
+        offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
+        layerComps.batchDraw();
+        refreshList();
+      });
+    } else {
+      // ---- Fallback Desktop: drag manuale con mouse ------------------------
+      let dragging = false; let startOffset = {dx:0, dy:0};
+      rect.on('mousedown', (e) => {
+        selectComposition(comp.id);
+        const p = group.getAbsolutePosition();
+        const pointer = stage.getPointerPosition();
+        startOffset.dx = pointer.x - p.x;
+        startOffset.dy = pointer.y - p.y;
+        dragging = true;
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp, { once: true });
+      });
+      function onMove(ev){
+        if (!dragging) return;
+        const pointer = stage.getPointerPosition();
+        let nx = pointer.x - startOffset.dx;
+        let ny = pointer.y - startOffset.dy;
+        // clamp ai bordi canvas
+        if (nx < padding) nx = padding;
+        if (ny < padding) ny = padding;
+        if (nx + b.w > padding + state.canvas.width) nx = padding + state.canvas.width - b.w;
+        if (ny + b.h > padding + state.canvas.height) ny = padding + state.canvas.height - b.h;
+        group.position({ x: nx, y: ny });
+        offText.text(`${size.w}×${size.h}px • (${Math.round(nx)-padding},${Math.round(ny)-padding})`);
+        layerComps.batchDraw();
       }
-      offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
-      layerComps.batchDraw();
-      refreshList();
-    });
+      function onUp(ev){
+        window.removeEventListener('mousemove', onMove);
+        dragging = false;
+        const p = group.position();
+        const proposed = { x: snap(p.x), y: snap(p.y), w:b.w, h:b.h, get x2(){return this.x+this.w}, get y2(){return this.y+this.h} };
+        if (!canvasClamp(proposed) || collidesAny(comp.id, proposed)) {
+          group.position({ x: comp.x, y: comp.y });
+        } else {
+          comp.x = proposed.x; comp.y = proposed.y;
+        }
+        offText.text(`${size.w}×${size.h}px • (${comp.x-padding},${comp.y-padding})`);
+        layerComps.batchDraw(); refreshList();
+      }
+    }
 
     layerComps.add(group);
+  }
   }
 
   // ---- Selezione & lista ----------------------------------------------------
