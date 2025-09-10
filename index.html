@@ -46,7 +46,22 @@
   <main>
     <section id="left">
       <div class="panel">
-        <div>Versione di test: un solo quadrato trascinabile. Nessun altro controllo.</div>
+        <div style="font-weight:700; margin-bottom:8px">Impostazioni Canvas</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end">
+          <div>
+            <label for="canvasW" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Larghezza (px)</label>
+            <input id="canvasW" type="number" min="1" value="1920" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink);"/>
+          </div>
+          <div>
+            <label for="canvasH" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Altezza (px)</label>
+            <input id="canvasH" type="number" min="1" value="1080" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink);"/>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <button id="apply" style="flex:1; background:var(--acc); color:#001018; font-weight:700; border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Applica</button>
+          <button id="fit" class="secondary" style="flex:1; background:#0f1115; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Fit</button>
+        </div>
+        <div style="margin-top:8px; font-size:12px; color:#a0a6ad">Canvas attuale: <span id="canvasInfo">–</span></div>
       </div>
     </section>
 
@@ -76,6 +91,10 @@
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
   const canvasInfo = document.getElementById('canvasInfo');
+  const applyBtn = document.getElementById('apply');
+  const fitBtn = document.getElementById('fit');
+  const canvasWInput = document.getElementById('canvasW');
+  const canvasHInput = document.getElementById('canvasH');
 
   // Setup canvas base
   function applyCanvasSize(w,h){
@@ -95,12 +114,18 @@
 
   // Crea un quadrato (200×150) dentro allo screen, pos 40,40 (offset +10 già nel CSS)
   function addBox(){
+    const tileW = 128, tileH = 128; // dimensione griglia interna (px)
+
     const el = document.createElement('div');
     el.className = 'comp';
     el.style.left = '40px';
     el.style.top  = '40px';
     el.style.width  = '200px';
     el.style.height = '150px';
+
+    // Griglia interna basata su tile
+    el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px, auto`;
+
     screen.appendChild(el);
 
     // Drag data
@@ -151,7 +176,17 @@
   new ResizeObserver(() => fitToViewport()).observe(viewport);
   window.addEventListener('orientationchange', () => setTimeout(fitToViewport, 0));
 
+  // Wiring controlli canvas
+  applyBtn.addEventListener('click', () => {
+    const w = Math.max(1, parseInt(canvasWInput.value||'0',10));
+    const h = Math.max(1, parseInt(canvasHInput.value||'0',10));
+    applyCanvasSize(w,h);
+  });
+  fitBtn.addEventListener('click', fitToViewport);
+
   // Boot
+  canvasWInput.value = state.canvas.w;
+  canvasHInput.value = state.canvas.h;
   applyCanvasSize(1920,1080);
   addBox();
 })();
