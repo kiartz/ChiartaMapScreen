@@ -266,6 +266,13 @@
     }
   }
 
+  function highlightSelection(){
+    const idStr = String(state.selectedId);
+    [...screen.querySelectorAll('.comp')].forEach(el => {
+      el.classList.toggle('selected', el.dataset.id === idStr);
+    });
+  }
+
   // ---------- Drag&Drop: stessa logica del test (senza PointerEvents) ----------
   let dragData = null; // { id, el, offsetX, offsetY }
 
