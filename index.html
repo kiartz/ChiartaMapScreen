@@ -63,6 +63,20 @@
         </div>
         <div style="margin-top:8px; font-size:12px; color:#a0a6ad">Canvas attuale: <span id="canvasInfo">–</span></div>
       </div>
+      <div class="panel" style="margin-top:12px">
+        <div style="font-weight:700; margin-bottom:8px">Griglia interna (px)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end">
+          <div>
+            <label for="tileW" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Tile W</label>
+            <input id="tileW" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="128" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink);"/>
+          </div>
+          <div>
+            <label for="tileH" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Tile H</label>
+            <input id="tileH" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="128" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink);"/>
+          </div>
+        </div>
+        <button id="applyGrid" style="margin-top:8px; width:100%; background:var(--acc); color:#001018; font-weight:700; border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Aggiorna griglia</button>
+      </div>
     </section>
 
     <section id="work">
@@ -84,13 +98,20 @@
 <script>
 (() => {
   // Stato minimale
-  const state = { canvas: { w: 1920, h: 1080 }, scale: 1 };
+  const state = { canvas: { w: 1920, h: 1080 }, scale: 1, tileW: 128, tileH: 128 };
 
   // DOM
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
   const canvasInfo = document.getElementById('canvasInfo');
+  const applyBtn = document.getElementById('apply');
+  const fitBtn = document.getElementById('fit');
+  const canvasWInput = document.getElementById('canvasW');
+  const canvasHInput = document.getElementById('canvasH');
+  const tileWInput = document.getElementById('tileW');
+  const tileHInput = document.getElementById('tileH');
+  const applyGridBtn = document.getElementById('applyGrid');
   const applyBtn = document.getElementById('apply');
   const fitBtn = document.getElementById('fit');
   const canvasWInput = document.getElementById('canvasW');
@@ -114,17 +135,16 @@
 
   // Crea un quadrato (200×150) dentro allo screen, pos 40,40 (offset +10 già nel CSS)
   function addBox(){
-    const tileW = 128, tileH = 128; // dimensione griglia interna (px)
-
     const el = document.createElement('div');
+    el.id = 'comp1';
     el.className = 'comp';
     el.style.left = '40px';
     el.style.top  = '40px';
     el.style.width  = '200px';
     el.style.height = '150px';
 
-    // Griglia interna basata su tile
-    el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px, auto`;
+    // Griglia interna basata su tile dalle impostazioni di stato
+    el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
 
     screen.appendChild(el);
 
@@ -176,17 +196,66 @@
   new ResizeObserver(() => fitToViewport()).observe(viewport);
   window.addEventListener('orientationchange', () => setTimeout(fitToViewport, 0));
 
+  // --- Controlli risoluzione ---
+  const controlsDiv = document.createElement('div');
+  controlsDiv.style.display = 'flex';
+  controlsDiv.style.gap = '6px';
+  controlsDiv.style.margin = '6px';
+
+  const inputW = document.createElement('input');
+  inputW.type = 'number';
+  inputW.value = state.canvas.w;
+  inputW.style.width = '80px';
+  const inputH = document.createElement('input');
+  inputH.type = 'number';
+  inputH.value = state.canvas.h;
+  inputH.style.width = '80px';
+  const btnApply = document.createElement('button');
+  btnApply.textContent = 'Applica';
+
+  controlsDiv.appendChild(inputW);
+  controlsDiv.appendChild(inputH);
+  controlsDiv.appendChild(btnApply);
+  document.querySelector('header').appendChild(controlsDiv);
+
+  btnApply.onclick = () => {
+    const w = +inputW.value || 1920;
+    const h = +inputH.value || 1080;
+    applyCanvasSize(w,h);
+  };
+
   // Wiring controlli canvas
   applyBtn.addEventListener('click', () => {
-    const w = Math.max(1, parseInt(canvasWInput.value||'0',10));
-    const h = Math.max(1, parseInt(canvasHInput.value||'0',10));
+    const w = toInt(canvasWInput.value, state.canvas.w);
+    const h = toInt(canvasHInput.value, state.canvas.h);
     applyCanvasSize(w,h);
   });
   fitBtn.addEventListener('click', fitToViewport);
 
+  // Grid controls (solo interi, niente virgole)
+  function toInt(v, fallback){
+    const n = parseInt(String(v).replace(/[^0-9]/g,''), 10);
+    return Number.isFinite(n) && n>0 ? n : fallback;
+  }
+  function applyGridSizes(){
+    state.tileW = toInt(tileWInput.value, state.tileW);
+    state.tileH = toInt(tileHInput.value, state.tileH);
+    tileWInput.value = state.tileW;
+    tileHInput.value = state.tileH;
+    const el = document.getElementById('comp1');
+    if (el){
+      el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
+    }
+  }
+  applyGridBtn.addEventListener('click', applyGridSizes);
+  tileWInput.addEventListener('input', (e)=>{ e.target.value = String(toInt(e.target.value, state.tileW)); });
+  tileHInput.addEventListener('input', (e)=>{ e.target.value = String(toInt(e.target.value, state.tileH)); });
+
   // Boot
   canvasWInput.value = state.canvas.w;
   canvasHInput.value = state.canvas.h;
+  tileWInput.value = state.tileW;
+  tileHInput.value = state.tileH;
   applyCanvasSize(1920,1080);
   addBox();
 })();
