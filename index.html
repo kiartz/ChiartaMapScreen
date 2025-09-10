@@ -54,7 +54,7 @@
           </div>
           <div>
             <label for="canvasH" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Altezza (px)</label>
-            <input id="canvasH" type="number" min="1" value="1080" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink);"/>
+            <input id="canvasH" type="number" min="1" value="1080" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#a0a6ad; color:var(--ink);"/>
           </div>
         </div>
         <div style="display:flex; gap:8px; margin-top:8px">
@@ -63,19 +63,36 @@
         </div>
         <div style="margin-top:8px; font-size:12px; color:#a0a6ad">Canvas attuale: <span id="canvasInfo">–</span></div>
       </div>
+
       <div class="panel" style="margin-top:12px">
         <div style="font-weight:700; margin-bottom:8px">Griglia interna (px)</div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end">
           <div>
             <label for="tileW" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Tile W</label>
-            <input id="tileW" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="128" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink);"/>
+            <input id="tileW" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="128" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#var(--ink);"/>
           </div>
           <div>
             <label for="tileH" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Tile H</label>
-            <input id="tileH" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="128" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink);"/>
+            <input id="tileH" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="128" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#var(--ink);"/>
           </div>
         </div>
         <button id="applyGrid" style="margin-top:8px; width:100%; background:var(--acc); color:#001018; font-weight:700; border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Aggiorna griglia</button>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:700; margin-bottom:8px">Nuova composizione</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end">
+          <div>
+            <label for="cols" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Colonne</label>
+            <input id="cols" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="8" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#var(--ink);"/>
+          </div>
+          <div>
+            <label for="rows" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Righe</label>
+            <input id="rows" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="4" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#var(--ink);"/>
+          </div>
+        </div>
+        <button id="addComp" style="margin-top:8px; width:100%; background:var(--acc); color:#001018; font-weight:700; border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Aggiungi</button>
+        <div style="margin-top:8px; font-size:12px; color:#a0a6ad">Tutte le misure sono **in pixel interi** (nessuna virgola).</div>
       </div>
     </section>
 
@@ -112,6 +129,9 @@
   const tileWInput = document.getElementById('tileW');
   const tileHInput = document.getElementById('tileH');
   const applyGridBtn = document.getElementById('applyGrid');
+  const colsInput = document.getElementById('cols');
+  const rowsInput = document.getElementById('rows');
+  const addCompBtn = document.getElementById('addComp');
   const applyBtn = document.getElementById('apply');
   const fitBtn = document.getElementById('fit');
   const canvasWInput = document.getElementById('canvasW');
@@ -136,16 +156,11 @@
   // Crea un quadrato (200×150) dentro allo screen, pos 40,40 (offset +10 già nel CSS)
   function addBox(){
     const el = document.createElement('div');
-    el.id = 'comp1';
     el.className = 'comp';
     el.style.left = '40px';
     el.style.top  = '40px';
     el.style.width  = '200px';
     el.style.height = '150px';
-
-    // Griglia interna basata su tile dalle impostazioni di stato
-    el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
-
     screen.appendChild(el);
 
     // Drag data
@@ -196,34 +211,6 @@
   new ResizeObserver(() => fitToViewport()).observe(viewport);
   window.addEventListener('orientationchange', () => setTimeout(fitToViewport, 0));
 
-  // --- Controlli risoluzione ---
-  const controlsDiv = document.createElement('div');
-  controlsDiv.style.display = 'flex';
-  controlsDiv.style.gap = '6px';
-  controlsDiv.style.margin = '6px';
-
-  const inputW = document.createElement('input');
-  inputW.type = 'number';
-  inputW.value = state.canvas.w;
-  inputW.style.width = '80px';
-  const inputH = document.createElement('input');
-  inputH.type = 'number';
-  inputH.value = state.canvas.h;
-  inputH.style.width = '80px';
-  const btnApply = document.createElement('button');
-  btnApply.textContent = 'Applica';
-
-  controlsDiv.appendChild(inputW);
-  controlsDiv.appendChild(inputH);
-  controlsDiv.appendChild(btnApply);
-  document.querySelector('header').appendChild(controlsDiv);
-
-  btnApply.onclick = () => {
-    const w = +inputW.value || 1920;
-    const h = +inputH.value || 1080;
-    applyCanvasSize(w,h);
-  };
-
   // Wiring controlli canvas
   applyBtn.addEventListener('click', () => {
     const w = toInt(canvasWInput.value, state.canvas.w);
@@ -247,17 +234,46 @@
       el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
     }
   }
-  applyGridBtn.addEventListener('click', applyGridSizes);
+  applyGridBtn.addEventListener('click', () => { applyGridSizes(); updateAllCompGrids(); });
   tileWInput.addEventListener('input', (e)=>{ e.target.value = String(toInt(e.target.value, state.tileW)); });
   tileHInput.addEventListener('input', (e)=>{ e.target.value = String(toInt(e.target.value, state.tileH)); });
 
-  // Boot
-  canvasWInput.value = state.canvas.w;
-  canvasHInput.value = state.canvas.h;
+  // Boot values
   tileWInput.value = state.tileW;
   tileHInput.value = state.tileH;
   applyCanvasSize(1920,1080);
   addBox();
+
+  // Aggiorna tutte le griglie esistenti quando cambiano tileW/H
+  function updateAllCompGrids(){
+    document.querySelectorAll('.comp').forEach(el => {
+      el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
+    });
+  }
+
+  // Aggiungi nuove composizioni in base a colonne/righe
+  function addComposition(){
+    const cols = toInt(colsInput.value, 1);
+    const rows = toInt(rowsInput.value, 1);
+    const w = cols * state.tileW;
+    const h = rows * state.tileH;
+    const el = document.createElement('div');
+    el.className = 'comp';
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+    // Posizione iniziale a cascata, clampata dentro lo screen
+    const base = 20 * (state.compCount % 10);
+    const startX = Math.min(10 + state.canvas.w - w, 10 + base);
+    const startY = Math.min(10 + state.canvas.h - h, 10 + base);
+    el.style.left = startX + 'px';
+    el.style.top  = startY + 'px';
+    el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
+    screen.appendChild(el);
+    makeDraggable(el);
+    state.compCount++;
+  }
+
+  addCompBtn.addEventListener('click', addComposition);
 })();
 </script>
 </body>
