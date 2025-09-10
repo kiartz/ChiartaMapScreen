@@ -26,6 +26,16 @@
     .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.12); cursor:grab; touch-action:none; user-select:none; }
     .comp.dragging { cursor:grabbing; }
     .comp .name, .comp .info { pointer-events:none; }
+
+    /* Griglia interna della composizione (impostiamo size via JS) */
+    .comp {
+      background-image:
+        linear-gradient(to right, rgba(69,184,255,0.35) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(69,184,255,0.35) 1px, transparent 1px),
+        radial-gradient(transparent, transparent); /* placeholder per compat */
+      background-size: 128px 128px, 128px 128px, auto; /* default, poi JS la aggiorna */
+      background-blend-mode: normal;
+    }
   </style>
 </head>
 <body>
