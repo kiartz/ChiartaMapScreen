@@ -3,102 +3,99 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Drag Minimal</title>
+  <title>LEDWall Mapper – Minimal Composizioni</title>
   <style>
     :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --acc:#45b8ff; }
     * { box-sizing: border-box; }
-    body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
     header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
     main { display:flex; gap:12px; padding:12px; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
-    #left { width:280px; display:flex; flex-direction:column; gap:12px; }
+    #left { width:320px; display:flex; flex-direction:column; gap:12px; }
     #work { flex:1; display:flex; flex-direction:column; gap:10px; }
 
-    /* Viewport/scaling */
+    /* Viewport / Canvas */
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
-    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action: none; }
-    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; touch-action: none; -webkit-user-select:none; user-select:none; }
-    #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
-      background-image: linear-gradient(to right, #181c24 1px, transparent 1px), linear-gradient(to bottom, #181c24 1px, transparent 1px);
-      background-size:100px 100px, 100px 100px; }
-
-    /* Quadrato draggable */
-    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.12); cursor:grab; touch-action:none; user-select:none; }
-    .comp.dragging { cursor:grabbing; }
-    .comp .name, .comp .info { pointer-events:none; }
-
-    /* Griglia interna della composizione (impostiamo size via JS) */
-    .comp {
+    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
+    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; touch-action:none; -webkit-user-select:none; user-select:none; }
+    /* Grid di sfondo 100px del CANVAS (sempre visibile) */
+    #screen::before {
+      content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
-        linear-gradient(to right, rgba(69,184,255,0.35) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(69,184,255,0.35) 1px, transparent 1px),
-        radial-gradient(transparent, transparent); /* placeholder per compat */
-      background-size: 128px 128px, 128px 128px, auto; /* default, poi JS la aggiorna */
-      background-blend-mode: normal;
+        linear-gradient(to right, #181c24 1px, transparent 1px),
+        linear-gradient(to bottom, #181c24 1px, transparent 1px);
+      background-size:100px 100px, 100px 100px;
     }
+
+    /* Composizione (rettangoli trascinabili) */
+    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.10);
+            cursor:grab; touch-action:none; user-select:none;
+            background-image:
+              linear-gradient(to right, rgba(69,184,255,0.35) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(69,184,255,0.35) 1px, transparent 1px);
+            background-size:128px 128px, 128px 128px; }
+    .comp.dragging { cursor:grabbing; }
+    .comp * { pointer-events:none; }
+
+    label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
+    input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:8px}
+    button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
   </style>
 </head>
 <body>
   <header>
-    <div style="font-weight:800">LEDWall Mapper – Drag Minimal</div>
+    <div style="font-weight:800">LEDWall Mapper – Minimal Composizioni</div>
   </header>
 
   <main>
     <section id="left">
       <div class="panel">
-        <div style="font-weight:700; margin-bottom:8px">Impostazioni Canvas</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end">
+        <div style="font-weight:700; margin-bottom:8px">Canvas</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
           <div>
-            <label for="canvasW" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Larghezza (px)</label>
-            <input id="canvasW" type="number" min="1" value="1920" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:var(--ink);"/>
+            <label for="canvasW">Larghezza (px)</label>
+            <input id="canvasW" type="number" min="1" step="1" value="1920">
           </div>
           <div>
-            <label for="canvasH" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Altezza (px)</label>
-            <input id="canvasH" type="number" min="1" value="1080" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#a0a6ad; color:var(--ink);"/>
+            <label for="canvasH">Altezza (px)</label>
+            <input id="canvasH" type="number" min="1" step="1" value="1080">
           </div>
         </div>
         <div style="display:flex; gap:8px; margin-top:8px">
-          <button id="apply" style="flex:1; background:var(--acc); color:#001018; font-weight:700; border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Applica</button>
-          <button id="fit" class="secondary" style="flex:1; background:#0f1115; color:var(--ink); border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Fit</button>
+          <button id="applyCanvas" style="flex:1">Applica</button>
+          <button id="fit" style="flex:1; background:#0f1115; color:var(--ink)">Fit</button>
         </div>
-        <div style="margin-top:8px; font-size:12px; color:#a0a6ad">Canvas attuale: <span id="canvasInfo">–</span></div>
-      </div>
-
-      <div class="panel" style="margin-top:12px">
-        <div style="font-weight:700; margin-bottom:8px">Griglia interna (px)</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end">
-          <div>
-            <label for="tileW" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Tile W</label>
-            <input id="tileW" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="128" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#var(--ink);"/>
-          </div>
-          <div>
-            <label for="tileH" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Tile H</label>
-            <input id="tileH" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="128" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#var(--ink);"/>
-          </div>
-        </div>
-        <button id="applyGrid" style="margin-top:8px; width:100%; background:var(--acc); color:#001018; font-weight:700; border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Aggiorna griglia</button>
+        <div style="margin-top:8px;font-size:12px;color:#a0a6ad">Canvas attuale: <span id="canvasInfo">–</span></div>
       </div>
 
       <div class="panel">
-        <div style="font-weight:700; margin-bottom:8px">Nuova composizione</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; align-items:end">
+        <div style="font-weight:700; margin-bottom:8px">Composizione (mattonelle + pixel)</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
           <div>
-            <label for="cols" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Colonne</label>
-            <input id="cols" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="8" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#var(--ink);"/>
+            <label for="cols">Colonne (mattonelle)</label>
+            <input id="cols" type="number" min="1" step="1" value="8">
           </div>
           <div>
-            <label for="rows" style="display:block; font-size:12px; color:#cfd3d7; margin-bottom:4px">Righe</label>
-            <input id="rows" type="number" min="1" step="1" inputmode="numeric" pattern="\\d*" value="4" style="width:100%; padding:8px; border-radius:8px; border:1px solid var(--border); background:#0f1115; color:#var(--ink);"/>
+            <label for="rows">Righe (mattonelle)</label>
+            <input id="rows" type="number" min="1" step="1" value="4">
+          </div>
+          <div>
+            <label for="tileW">Tile W (px)</label>
+            <input id="tileW" type="number" min="1" step="1" value="128">
+          </div>
+          <div>
+            <label for="tileH">Tile H (px)</label>
+            <input id="tileH" type="number" min="1" step="1" value="128">
           </div>
         </div>
-        <button id="addComp" style="margin-top:8px; width:100%; background:var(--acc); color:#001018; font-weight:700; border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer;">Aggiungi</button>
-        <div style="margin-top:8px; font-size:12px; color:#a0a6ad">Tutte le misure sono **in pixel interi** (nessuna virgola).</div>
+        <button id="addComp" style="margin-top:8px; width:100%">Aggiungi composizione</button>
+        <div style="margin-top:6px;font-size:12px;color:#a0a6ad">TUTTO in pixel interi (nessuna virgola).</div>
       </div>
     </section>
 
     <section id="work">
       <div class="panel" style="display:flex; flex-direction:column; gap:8px; min-height:72vh">
-        <div>Canvas: <span id="canvasInfo">–</span></div>
+        <div>Area di lavoro</div>
         <div id="viewport">
           <div id="screenWrap">
             <div id="screen"></div>
@@ -109,43 +106,50 @@
   </main>
 
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag test: mouse + touch con preventDefault e nessun re-render durante il drag.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch), canvas scalato automaticamente.</div>
   </footer>
 
 <script>
 (() => {
-  // Stato minimale
-  const state = { canvas: { w: 1920, h: 1080 }, scale: 1, tileW: 128, tileH: 128 };
+  // Stato
+  const state = {
+    canvas: { w:1920, h:1080 },
+    scale: 1,
+    counter: 0
+  };
 
   // DOM
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
   const canvasInfo = document.getElementById('canvasInfo');
-  const applyBtn = document.getElementById('apply');
-  const fitBtn = document.getElementById('fit');
-  const canvasWInput = document.getElementById('canvasW');
-  const canvasHInput = document.getElementById('canvasH');
-  const tileWInput = document.getElementById('tileW');
-  const tileHInput = document.getElementById('tileH');
-  const applyGridBtn = document.getElementById('applyGrid');
-  const colsInput = document.getElementById('cols');
-  const rowsInput = document.getElementById('rows');
-  const addCompBtn = document.getElementById('addComp');
-  const applyBtn = document.getElementById('apply');
+  const applyCanvasBtn = document.getElementById('applyCanvas');
   const fitBtn = document.getElementById('fit');
   const canvasWInput = document.getElementById('canvasW');
   const canvasHInput = document.getElementById('canvasH');
 
-  // Setup canvas base
+  const colsInput = document.getElementById('cols');
+  const rowsInput = document.getElementById('rows');
+  const tileWInput = document.getElementById('tileW');
+  const tileHInput = document.getElementById('tileH');
+  const addCompBtn = document.getElementById('addComp');
+
+  // Helpers
+  const toInt = (v, fb) => {
+    const n = parseInt(String(v).replace(/[^0-9]/g,''),10);
+    return Number.isFinite(n) && n>0 ? n : fb;
+  };
+
   function applyCanvasSize(w,h){
     state.canvas.w = w; state.canvas.h = h;
-    screen.style.width = w+"px"; screen.style.height = h+"px";
+    screen.style.width = w + 'px';
+    screen.style.height = h + 'px';
     canvasInfo.textContent = `${w}×${h}px`;
     fitToViewport();
   }
+
   function fitToViewport(){
-    const vw = viewport.clientWidth - 16; // padding visivo
+    const vw = viewport.clientWidth - 16;
     const vh = viewport.clientHeight - 16;
     const sx = vw / (state.canvas.w + 20);
     const sy = vh / (state.canvas.h + 20);
@@ -153,127 +157,84 @@
     screenWrap.style.transform = `scale(${state.scale})`;
   }
 
-  // Crea un quadrato (200×150) dentro allo screen, pos 40,40 (offset +10 già nel CSS)
-  function addBox(){
-    const el = document.createElement('div');
-    el.className = 'comp';
-    el.style.left = '40px';
-    el.style.top  = '40px';
-    el.style.width  = '200px';
-    el.style.height = '150px';
-    screen.appendChild(el);
-
-    // Drag data
-    let dragData = null;
-    const getEventPos = (e) => { if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
-
-    const startDrag = (e) => {
+  // Drag per una .comp
+  function makeDraggable(el){
+    let drag = null;
+    const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
+    const start = (e)=>{
       e.preventDefault();
-      const pos = getEventPos(e);
-      const rect = el.getBoundingClientRect();
-      dragData = { dx: pos.x - rect.left, dy: pos.y - rect.top };
+      const p=getPos(e); const r=el.getBoundingClientRect();
+      drag = { dx: p.x - r.left, dy: p.y - r.top };
       el.classList.add('dragging');
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', endDrag);
-      document.addEventListener('touchmove', onMove, { passive:false });
-      document.addEventListener('touchend', endDrag);
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', end);
+      document.addEventListener('touchmove', move, { passive:false });
+      document.addEventListener('touchend', end);
     };
-
-    const onMove = (e) => {
-      if (!dragData) return;
-      e.preventDefault();
-      const pos = getEventPos(e);
-      const pg = screen.getBoundingClientRect();
-      let nx = (pos.x - pg.left)/state.scale - dragData.dx;
-      let ny = (pos.y - pg.top )/state.scale - dragData.dy;
-      // limiti (screen parte a 10,10)
+    const move = (e)=>{
+      if(!drag) return; e.preventDefault();
+      const p = getPos(e); const pg = screen.getBoundingClientRect();
       const w = el.offsetWidth, h = el.offsetHeight;
+      let nx = (p.x - pg.left)/state.scale - drag.dx;
+      let ny = (p.y - pg.top )/state.scale - drag.dy;
       nx = Math.max(10, Math.min(10 + state.canvas.w - w, nx));
       ny = Math.max(10, Math.min(10 + state.canvas.h - h, ny));
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
     };
-
-    const endDrag = () => {
-      dragData = null;
-      el.classList.remove('dragging');
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', endDrag);
-      document.removeEventListener('touchmove', onMove);
-      document.removeEventListener('touchend', endDrag);
+    const end = ()=>{
+      drag = null; el.classList.remove('dragging');
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', end);
+      document.removeEventListener('touchmove', move);
+      document.removeEventListener('touchend', end);
     };
-
-    el.addEventListener('mousedown', startDrag);
-    el.addEventListener('touchstart', startDrag, { passive:false });
+    el.addEventListener('mousedown', start);
+    el.addEventListener('touchstart', start, { passive:false });
   }
 
-  // Resize auto
-  new ResizeObserver(() => fitToViewport()).observe(viewport);
-  window.addEventListener('orientationchange', () => setTimeout(fitToViewport, 0));
+  // Aggiunge una composizione: dimensioni = (cols*tileW) × (rows*tileH)
+  function addComposition(){
+    const cols = toInt(colsInput.value, 1);
+    const rows = toInt(rowsInput.value, 1);
+    const tileW = toInt(tileWInput.value, 1);
+    const tileH = toInt(tileHInput.value, 1);
 
-  // Wiring controlli canvas
-  applyBtn.addEventListener('click', () => {
+    const w = cols * tileW;
+    const h = rows * tileH;
+
+    const el = document.createElement('div');
+    el.className = 'comp';
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+    el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
+
+    // posizione iniziale "a cascata" ma clampata allo screen
+    const base = 24 * (state.counter % 10);
+    const startX = Math.min(10 + state.canvas.w - w, 10 + base);
+    const startY = Math.min(10 + state.canvas.h - h, 10 + base);
+    el.style.left = startX + 'px';
+    el.style.top  = startY + 'px';
+
+    screen.appendChild(el);
+    makeDraggable(el);
+    state.counter++;
+  }
+
+  // Event wiring
+  applyCanvasBtn.addEventListener('click', ()=>{
     const w = toInt(canvasWInput.value, state.canvas.w);
     const h = toInt(canvasHInput.value, state.canvas.h);
     applyCanvasSize(w,h);
   });
   fitBtn.addEventListener('click', fitToViewport);
-
-  // Grid controls (solo interi, niente virgole)
-  function toInt(v, fallback){
-    const n = parseInt(String(v).replace(/[^0-9]/g,''), 10);
-    return Number.isFinite(n) && n>0 ? n : fallback;
-  }
-  function applyGridSizes(){
-    state.tileW = toInt(tileWInput.value, state.tileW);
-    state.tileH = toInt(tileHInput.value, state.tileH);
-    tileWInput.value = state.tileW;
-    tileHInput.value = state.tileH;
-    const el = document.getElementById('comp1');
-    if (el){
-      el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
-    }
-  }
-  applyGridBtn.addEventListener('click', () => { applyGridSizes(); updateAllCompGrids(); });
-  tileWInput.addEventListener('input', (e)=>{ e.target.value = String(toInt(e.target.value, state.tileW)); });
-  tileHInput.addEventListener('input', (e)=>{ e.target.value = String(toInt(e.target.value, state.tileH)); });
-
-  // Boot values
-  tileWInput.value = state.tileW;
-  tileHInput.value = state.tileH;
-  applyCanvasSize(1920,1080);
-  addBox();
-
-  // Aggiorna tutte le griglie esistenti quando cambiano tileW/H
-  function updateAllCompGrids(){
-    document.querySelectorAll('.comp').forEach(el => {
-      el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
-    });
-  }
-
-  // Aggiungi nuove composizioni in base a colonne/righe
-  function addComposition(){
-    const cols = toInt(colsInput.value, 1);
-    const rows = toInt(rowsInput.value, 1);
-    const w = cols * state.tileW;
-    const h = rows * state.tileH;
-    const el = document.createElement('div');
-    el.className = 'comp';
-    el.style.width = w + 'px';
-    el.style.height = h + 'px';
-    // Posizione iniziale a cascata, clampata dentro lo screen
-    const base = 20 * (state.compCount % 10);
-    const startX = Math.min(10 + state.canvas.w - w, 10 + base);
-    const startY = Math.min(10 + state.canvas.h - h, 10 + base);
-    el.style.left = startX + 'px';
-    el.style.top  = startY + 'px';
-    el.style.backgroundSize = `${state.tileW}px ${state.tileH}px, ${state.tileW}px ${state.tileH}px, auto`;
-    screen.appendChild(el);
-    makeDraggable(el);
-    state.compCount++;
-  }
-
   addCompBtn.addEventListener('click', addComposition);
+
+  new ResizeObserver(()=>fitToViewport()).observe(viewport);
+  window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
+
+  // Boot
+  applyCanvasSize(1920,1080);
 })();
 </script>
 </body>
