@@ -110,13 +110,15 @@
   </footer>
 
 <script>
-(() => {
+((() => {
   // Stato
   const state = {
     canvas: { w:1920, h:1080 },
     scale: 1,
     counter: 0
   };
+  // Snap morbido (in pixel del mondo)
+  const SNAP_THRESHOLD = 12;
 
   // DOM
   const viewport = document.getElementById('viewport');
@@ -161,6 +163,7 @@
   function makeDraggable(el){
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
+
     const start = (e)=>{
       e.preventDefault(); e.stopPropagation();
       const p = getPos(e);
@@ -178,19 +181,32 @@
       window.addEventListener('touchmove', move, { passive:false });
       window.addEventListener('touchend', end);
     };
+
     const move = (e)=>{
       if(!drag) return; e.preventDefault(); e.stopPropagation();
       const p = getPos(e); const pg = screen.getBoundingClientRect();
       const pointerWorldX = (p.x - pg.left) / state.scale;
       const pointerWorldY = (p.y - pg.top)  / state.scale;
       const w = el.offsetWidth, h = el.offsetHeight;
+      // posizione grezza (mondo)
       let nx = pointerWorldX - drag.offsetX;
       let ny = pointerWorldY - drag.offsetY;
+      // clamp ai bordi del canvas (screen parte a 10,10)
+      nx = Math.max(10, Math.min(10 + state.canvas.w - w, nx));
+      ny = Math.max(10, Math.min(10 + state.canvas.h - h, ny));
+      // --- SNAP ALLA GRIGLIA (tile) ---
+      const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
+      const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
+      const originX = 10, originY = 10; // origine griglia -> top-left del canvas
+      nx = originX + Math.round((nx - originX) / tileW) * tileW;
+      ny = originY + Math.round((ny - originY) / tileH) * tileH;
+      // riclamp dopo snap
       nx = Math.max(10, Math.min(10 + state.canvas.w - w, nx));
       ny = Math.max(10, Math.min(10 + state.canvas.h - h, ny));
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
     };
+
     const end = ()=>{
       drag = null; el.classList.remove('dragging');
       window.removeEventListener('mousemove', move);
@@ -198,6 +214,7 @@
       window.removeEventListener('touchmove', move);
       window.removeEventListener('touchend', end);
     };
+
     el.addEventListener('mousedown', start);
     el.addEventListener('touchstart', start, { passive:false });
   }
