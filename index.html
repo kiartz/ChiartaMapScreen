@@ -162,31 +162,30 @@
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
     const start = (e)=>{
-      e.preventDefault();
+      e.preventDefault(); e.stopPropagation();
       const p = getPos(e);
       const pg = screen.getBoundingClientRect();
-      const er = el.getBoundingClientRect();
-      // Coordinate mondo (relative allo screen non scalato)
-      const worldX = (p.x - pg.left) / state.scale;
-      const worldY = (p.y - pg.top)  / state.scale;
-      // Offset locale dentro al rettangolo, in coordinate mondo
-      const offX = (p.x - er.left) / state.scale;
-      const offY = (p.y - er.top)  / state.scale;
-      drag = { offX, offY };
+      // coordinate "mondo" (non scalate), origine = top-left dello screen
+      const pointerWorldX = (p.x - pg.left) / state.scale;
+      const pointerWorldY = (p.y - pg.top)  / state.scale;
+      const curLeft = parseFloat(el.style.left) || 0;
+      const curTop  = parseFloat(el.style.top)  || 0;
+      // offset tra il punto toccato e il top-left del box IN MONDO
+      drag = { offsetX: pointerWorldX - curLeft, offsetY: pointerWorldY - curTop };
       el.classList.add('dragging');
-      document.addEventListener('mousemove', move);
-      document.addEventListener('mouseup', end);
-      document.addEventListener('touchmove', move, { passive:false });
-      document.addEventListener('touchend', end);
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+      window.addEventListener('touchmove', move, { passive:false });
+      window.addEventListener('touchend', end);
     };
     const move = (e)=>{
-      if(!drag) return; e.preventDefault();
+      if(!drag) return; e.preventDefault(); e.stopPropagation();
       const p = getPos(e); const pg = screen.getBoundingClientRect();
-      const worldX = (p.x - pg.left) / state.scale;
-      const worldY = (p.y - pg.top)  / state.scale;
+      const pointerWorldX = (p.x - pg.left) / state.scale;
+      const pointerWorldY = (p.y - pg.top)  / state.scale;
       const w = el.offsetWidth, h = el.offsetHeight;
-      let nx = worldX - drag.offX;
-      let ny = worldY - drag.offY;
+      let nx = pointerWorldX - drag.offsetX;
+      let ny = pointerWorldY - drag.offsetY;
       nx = Math.max(10, Math.min(10 + state.canvas.w - w, nx));
       ny = Math.max(10, Math.min(10 + state.canvas.h - h, ny));
       el.style.left = nx + 'px';
@@ -194,10 +193,10 @@
     };
     const end = ()=>{
       drag = null; el.classList.remove('dragging');
-      document.removeEventListener('mousemove', move);
-      document.removeEventListener('mouseup', end);
-      document.removeEventListener('touchmove', move);
-      document.removeEventListener('touchend', end);
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', end);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', end);
     };
     el.addEventListener('mousedown', start);
     el.addEventListener('touchstart', start, { passive:false });
@@ -218,6 +217,9 @@
     el.style.width = w + 'px';
     el.style.height = h + 'px';
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
+    // Passo griglia per lo snap
+    el.dataset.tileW = String(tileW);
+    el.dataset.tileH = String(tileH);
 
     // posizione iniziale "a cascata" ma clampata allo screen
     const base = 24 * (state.counter % 10);
