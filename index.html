@@ -28,12 +28,8 @@
     }
 
     /* Composizione (rettangoli trascinabili) */
-    .comp { position:absolute; border:2px dashed var(--acc); background:rgba(69,184,255,0.10);
-            cursor:grab; touch-action:none; user-select:none;
-            background-image:
-              linear-gradient(to right, rgba(69,184,255,0.35) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(69,184,255,0.35) 1px, transparent 1px);
-            background-size:128px 128px, 128px 128px; }
+    .comp { $1 }
+    .comp.selected{ outline:2px solid #7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
     .comp.dragging { cursor:grabbing; }
     .comp * { pointer-events:none; }
 
@@ -89,6 +85,10 @@
           </div>
         </div>
         <button id="addComp" style="margin-top:8px; width:100%">Aggiungi composizione</button>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <button id="dupComp" class="secondary" style="flex:1; background:#0f1115; color:var(--ink)">Duplica selezionata</button>
+          <button id="delComp" class="secondary" style="flex:1; background:#0f1115; color:var(--ink)">Elimina selezionata</button>
+        </div>
         <div style="margin-top:6px;font-size:12px;color:#a0a6ad">TUTTO in pixel interi (nessuna virgola).</div>
       </div>
     </section>
@@ -115,7 +115,8 @@
   const state = {
     canvas: { w:1920, h:1080 },
     scale: 1,
-    counter: 0
+    counter: 0,
+    selected: null
   };
   // Snap morbido (in pixel del mondo)
   const SNAP_THRESHOLD = 12;
@@ -135,6 +136,8 @@
   const tileWInput = document.getElementById('tileW');
   const tileHInput = document.getElementById('tileH');
   const addCompBtn = document.getElementById('addComp');
+  const dupCompBtn = document.getElementById('dupComp');
+  const delCompBtn = document.getElementById('delComp');
 
   // Helpers
   const toInt = (v, fb) => {
@@ -160,11 +163,21 @@
   }
 
   // Drag + Snap
+  function selectComp(el){
+    if (state.selected && state.selected !== el){ state.selected.classList.remove('selected'); }
+    state.selected = el;
+    if (state.selected) state.selected.classList.add('selected');
+    updateSelectionButtons();
+  }
+  function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateSelectionButtons(); } }
+  function updateSelectionButtons(){ const has = !!state.selected; if(dupCompBtn){ dupCompBtn.disabled = !has; } if(delCompBtn){ delCompBtn.disabled = !has; } }
+
   function makeDraggable(el){
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
 
     const start = (e)=>{
+      selectComp(el);
       e.preventDefault(); e.stopPropagation();
       const p = getPos(e);
       const pg = screen.getBoundingClientRect();
@@ -266,6 +279,7 @@
 
     el.addEventListener('mousedown', start);
     el.addEventListener('touchstart', start, { passive:false });
+    el.addEventListener('click', (e)=>{ e.stopPropagation(); selectComp(el); });
   }
 
   // Aggiunge una composizione: dimensioni = (cols*tileW) × (rows*tileH)
@@ -283,11 +297,9 @@
     el.style.width = w + 'px';
     el.style.height = h + 'px';
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
-    // Passo griglia per lo snap
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // posizione iniziale "a cascata" ma clampata allo screen
     const base = 24 * (state.counter % 10);
     const startX = Math.min(10 + state.canvas.w - w, 10 + base);
     const startY = Math.min(10 + state.canvas.h - h, 10 + base);
@@ -307,12 +319,39 @@
   });
   fitBtn.addEventListener('click', fitToViewport);
   addCompBtn.addEventListener('click', addComposition);
+  dupCompBtn.addEventListener('click', ()=>{
+    const src = state.selected; if(!src) return;
+    const w = src.offsetWidth, h = src.offsetHeight;
+    const tileW = parseInt(src.dataset.tileW||'1',10)||1;
+    const tileH = parseInt(src.dataset.tileH||'1',10)||1;
+    const el = document.createElement('div');
+    el.className = 'comp';
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+    el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
+    el.dataset.tileW = String(tileW);
+    el.dataset.tileH = String(tileH);
+    let nx = (parseFloat(src.style.left)||10) + 24;
+    let ny = (parseFloat(src.style.top)||10) + 24;
+    nx = Math.min(10 + state.canvas.w - w, Math.max(10, nx));
+    ny = Math.min(10 + state.canvas.h - h, Math.max(10, ny));
+    el.style.left = nx + 'px';
+    el.style.top  = ny + 'px';
+    screen.appendChild(el);
+    makeDraggable(el);
+    selectComp(el);
+    state.counter++;
+  });
+  delCompBtn.addEventListener('click', ()=>{ if(!state.selected) return; const el=state.selected; el.remove(); state.selected=null; updateSelectionButtons(); });
 
   new ResizeObserver(()=>fitToViewport()).observe(viewport);
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
 
   // Boot
   applyCanvasSize(toInt(canvasWInput.value,1920), toInt(canvasHInput.value,1080));
+  updateSelectionButtons();
+  // clear selection by tapping empty canvas
+  screen.addEventListener('click', ()=>{ clearSelection(); });
 })();
 </script>
 </body>
