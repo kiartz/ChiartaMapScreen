@@ -17,7 +17,7 @@
     /* Viewport / Canvas */
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
     #screenWrap { $1 will-change: transform; }
-    #screen { $1 overflow:hidden; }
+    #screen { $1 box-sizing:border-box; border:1px solid #1e2229; }
     /* Grid di sfondo 100px del CANVAS */
     #screen::before {
       content:""; position:absolute; inset:0; pointer-events:none;
