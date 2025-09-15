@@ -269,15 +269,15 @@
       // --- SNAP MORBIDO ALLA GRIGLIA DEL CANVAS ---
       const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
       const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-      const originX = 10, originY = 10; // top-left canvas
+      const originX = 0, originY = 0; // top-left canvas
       const nearestGX = originX + Math.round((nx - originX)/tileW)*tileW;
       if (Math.abs(nx - nearestGX) <= SNAP_THRESHOLD) nx = nearestGX;
       const nearestGY = originY + Math.round((ny - originY)/tileH)*tileH;
       if (Math.abs(ny - nearestGY) <= SNAP_THRESHOLD) ny = nearestGY;
 
       // clamp finale entro canvas
-      nx = Math.max(10, Math.min(10 + state.canvas.w - w, nx));
-      ny = Math.max(10, Math.min(10 + state.canvas.h - h, ny));
+      nx = Math.max(0, Math.min(state.canvas.w - w, nx));
+      ny = Math.max(0, Math.min(state.canvas.h - h, ny));
 
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
@@ -317,8 +317,8 @@
 
     // posizione iniziale "a cascata" ma clampata allo screen
     const base = 24 * (state.counter % 10);
-    const startX = Math.min(10 + state.canvas.w - w, 10 + base);
-    const startY = Math.min(10 + state.canvas.h - h, 10 + base);
+    const startX = Math.min(state.canvas.w - w, Math.max(0, base));
+    const startY = Math.min(state.canvas.h - h, Math.max(0, base));
     el.style.left = startX + 'px';
     el.style.top  = startY + 'px';
 
