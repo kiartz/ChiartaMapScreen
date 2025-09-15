@@ -17,7 +17,7 @@
     /* Viewport / Canvas */
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
     #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
-    #screen { $1 box-sizing: content-box; }
+    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; touch-action:none; -webkit-user-select:none; user-select:none; z-index:1; }
     /* Grid di sfondo 100px del CANVAS */
     #screen::before {
       content:""; position:absolute; inset:0; pointer-events:none;
@@ -28,14 +28,24 @@
     }
 
     /* Composizione (rettangoli trascinabili) */
-    .comp { $1 box-sizing: content-box; }
-    .comp.selected{ outline:2px solid #7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
+    .comp {
+      position:absolute; z-index:2;
+      border:2px dashed var(--acc);
+      background:rgba(69,184,255,0.15); /* più visibile */
+      cursor:grab; touch-action:none; user-select:none;
+      background-image:
+        linear-gradient(to right, rgba(69,184,255,0.35) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(69,184,255,0.35) 1px, transparent 1px);
+      background-size:128px 128px, 128px 128px;
+    }
     .comp.dragging { cursor:grabbing; }
+    .comp.selected { outline:2px solid #7fd0ff; box-shadow:0 0 0 2px rgba(127,208,255,0.25) inset; }
     .comp * { pointer-events:none; }
 
     label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
     input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:8px}
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
+    button.secondary{ background:#0f1115; color:var(--ink) }
   </style>
 </head>
 <body>
@@ -59,7 +69,7 @@
         </div>
         <div style="display:flex; gap:8px; margin-top:8px">
           <button id="applyCanvas" style="flex:1">Applica</button>
-          <button id="fit" style="flex:1; background:#0f1115; color:var(--ink)">Fit</button>
+          <button id="fit" class="secondary" style="flex:1">Fit</button>
         </div>
         <div style="margin-top:8px;font-size:12px;color:#a0a6ad">Canvas attuale: <span id="canvasInfo">–</span></div>
       </div>
@@ -86,8 +96,8 @@
         </div>
         <button id="addComp" style="margin-top:8px; width:100%">Aggiungi composizione</button>
         <div style="display:flex; gap:8px; margin-top:8px">
-          <button id="dupComp" class="secondary" style="flex:1; background:#0f1115; color:var(--ink)">Duplica selezionata</button>
-          <button id="delComp" class="secondary" style="flex:1; background:#0f1115; color:var(--ink)">Elimina selezionata</button>
+          <button id="dupComp" class="secondary" style="flex:1">Duplica selezionata</button>
+          <button id="delComp" class="secondary" style="flex:1">Elimina selezionata</button>
         </div>
         <div style="margin-top:6px;font-size:12px;color:#a0a6ad">TUTTO in pixel interi (nessuna virgola).</div>
       </div>
@@ -162,7 +172,6 @@
     screenWrap.style.transform = `scale(${state.scale})`;
   }
 
-  // Drag + Snap
   function selectComp(el){
     if (state.selected && state.selected !== el){ state.selected.classList.remove('selected'); }
     state.selected = el;
@@ -170,15 +179,20 @@
     updateSelectionButtons();
   }
   function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateSelectionButtons(); } }
-  function updateSelectionButtons(){ const has = !!state.selected; if(dupCompBtn){ dupCompBtn.disabled = !has; } if(delCompBtn){ delCompBtn.disabled = !has; } }
+  function updateSelectionButtons(){
+    const has = !!state.selected;
+    dupCompBtn.disabled = !has;
+    delCompBtn.disabled = !has;
+  }
 
+  // Drag + Snap
   function makeDraggable(el){
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
 
     const start = (e)=>{
-      selectComp(el);
       e.preventDefault(); e.stopPropagation();
+      selectComp(el);
       const p = getPos(e);
       const pg = screen.getBoundingClientRect();
       // coordinate mondo
@@ -255,15 +269,15 @@
       // --- SNAP MORBIDO ALLA GRIGLIA DEL CANVAS ---
       const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
       const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-      const originX = 10, originY = 10; // top-left canvas
+      const originX = 0, originY = 0; // top-left canvas (corretto)
       const nearestGX = originX + Math.round((nx - originX)/tileW)*tileW;
       if (Math.abs(nx - nearestGX) <= SNAP_THRESHOLD) nx = nearestGX;
       const nearestGY = originY + Math.round((ny - originY)/tileH)*tileH;
       if (Math.abs(ny - nearestGY) <= SNAP_THRESHOLD) ny = nearestGY;
 
-      // clamp finale entro canvas
-      nx = Math.max(10, Math.min(10 + state.canvas.w - w, nx));
-      ny = Math.max(10, Math.min(10 + state.canvas.h - h, ny));
+      // clamp finale entro canvas (corretto)
+      nx = Math.max(0, Math.min(state.canvas.w - w, nx));
+      ny = Math.max(0, Math.min(state.canvas.h - h, ny));
 
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
@@ -297,12 +311,14 @@
     el.style.width = w + 'px';
     el.style.height = h + 'px';
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
+    // Passo griglia per lo snap
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
+    // posizione iniziale "a cascata" clampata allo screen (corretto)
     const base = 24 * (state.counter % 10);
-    const startX = Math.min(10 + state.canvas.w - w, 10 + base);
-    const startY = Math.min(10 + state.canvas.h - h, 10 + base);
+    const startX = Math.min(state.canvas.w - w, Math.max(0, base));
+    const startY = Math.min(state.canvas.h - h, Math.max(0, base));
     el.style.left = startX + 'px';
     el.style.top  = startY + 'px';
 
@@ -310,6 +326,13 @@
     makeDraggable(el);
     selectComp(el);
     state.counter++;
+  }
+
+  // Duplica / Elimina
+  function updateSelectionButtons(){
+    const has = !!state.selected;
+    dupCompBtn.disabled = !has;
+    delCompBtn.disabled = !has;
   }
 
   // Event wiring
@@ -320,11 +343,13 @@
   });
   fitBtn.addEventListener('click', fitToViewport);
   addCompBtn.addEventListener('click', addComposition);
+
   dupCompBtn.addEventListener('click', ()=>{
     const src = state.selected; if(!src) return;
     const w = src.offsetWidth, h = src.offsetHeight;
     const tileW = parseInt(src.dataset.tileW||'1',10)||1;
     const tileH = parseInt(src.dataset.tileH||'1',10)||1;
+
     const el = document.createElement('div');
     el.className = 'comp';
     el.style.width = w + 'px';
@@ -332,18 +357,29 @@
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
-    let nx = (parseFloat(src.style.left)||10) + 24;
-    let ny = (parseFloat(src.style.top)||10) + 24;
-    nx = Math.min(10 + state.canvas.w - w, Math.max(10, nx));
-    ny = Math.min(10 + state.canvas.h - h, Math.max(10, ny));
+
+    let nx = (parseFloat(src.style.left)||0) + 24;
+    let ny = (parseFloat(src.style.top)||0) + 24;
+    nx = Math.min(state.canvas.w - w, Math.max(0, nx));
+    ny = Math.min(state.canvas.h - h, Math.max(0, ny));
     el.style.left = nx + 'px';
     el.style.top  = ny + 'px';
+
     screen.appendChild(el);
     makeDraggable(el);
     selectComp(el);
     state.counter++;
   });
-  delCompBtn.addEventListener('click', ()=>{ if(!state.selected) return; const el=state.selected; el.remove(); state.selected=null; updateSelectionButtons(); });
+
+  delCompBtn.addEventListener('click', ()=>{
+    if(!state.selected) return;
+    state.selected.remove();
+    state.selected = null;
+    updateSelectionButtons();
+  });
+
+  // Deseleziona cliccando il canvas vuoto
+  screen.addEventListener('click', ()=>{ clearSelection(); });
 
   new ResizeObserver(()=>fitToViewport()).observe(viewport);
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
@@ -351,8 +387,6 @@
   // Boot
   applyCanvasSize(toInt(canvasWInput.value,1920), toInt(canvasHInput.value,1080));
   updateSelectionButtons();
-  // clear selection by tapping empty canvas
-  screen.addEventListener('click', ()=>{ clearSelection(); });
 })();
 </script>
 </body>
