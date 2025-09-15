@@ -16,8 +16,8 @@
 
     /* Viewport / Canvas */
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
-    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
-    #screen { position:absolute; left:10px; top:10px; background:#0c0d11; border:1px solid #1e2229; touch-action:none; -webkit-user-select:none; user-select:none; z-index:1; }
+    #screenWrap { $1 will-change: transform; }
+    #screen { $1 overflow:hidden; }
     /* Grid di sfondo 100px del CANVAS */
     #screen::before {
       content:""; position:absolute; inset:0; pointer-events:none;
@@ -172,7 +172,7 @@
     const sx = vw / (state.canvas.w + 20);
     const sy = vh / (state.canvas.h + 20);
     state.scale = Math.min(sx, sy, 1);
-    screenWrap.style.transform = `scale(${state.scale})`;
+    screenWrap.style.transform = `translateZ(0) scale(${state.scale})`;
   }
 
   function selectComp(el){
@@ -282,6 +282,7 @@
       nx = Math.max(0, Math.min(state.canvas.w - w, nx));
       ny = Math.max(0, Math.min(state.canvas.h - h, ny));
 
+      nx = Math.round(nx); ny = Math.round(ny);
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
     };
