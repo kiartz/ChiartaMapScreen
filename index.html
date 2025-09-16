@@ -11,7 +11,7 @@
     header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
     main { display:flex; gap:12px; padding:12px; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
-    #left { width:360px; display:flex; flex-direction:column; gap:12px; }
+    #left { width:420px; display:flex; flex-direction:column; gap:12px; }
     #work { flex:1; display:flex; flex-direction:column; gap:10px; }
 
     /* Viewport / Canvas */
@@ -24,7 +24,7 @@
       box-sizing:content-box;     /* il bordo resta esterno alle dimensioni interne */
       touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden;
     }
-    /* Griglia 100px, nessun offset: niente doppie linee */
+    /* Griglia 100px */
     #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
         linear-gradient(to right, #181c24 1px, transparent 1px),
@@ -44,7 +44,7 @@
         linear-gradient(to right, rgba(69,184,255,0.30) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(69,184,255,0.30) 1px, transparent 1px);
       background-size:128px 128px, 128px 128px;
-      padding: 4px 8px; /* respiro per il testo */
+      padding: 4px 8px;
     }
     .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff; }
 
@@ -60,11 +60,10 @@
     .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
     .comp .size { color:#d6e8ff; text-shadow:0 1px 2px #000; margin-top:4px; }
 
-    /* Etichette offset (in alto-sinistra e in basso-destra) */
+    /* Etichette offset (TL e BR) */
     .comp .offset,
     .comp .offsetBR {
-      position:absolute;
-      font-weight:600;
+      position:absolute; font-weight:600;
       color:#e9f6ff; text-shadow:0 1px 2px #000;
       background:rgba(10,15,20,0.55);
       border:1px solid rgba(127,208,255,0.35);
@@ -88,6 +87,15 @@
     #toolbar button { background:none; border:1px solid #444; cursor:pointer; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
     #toolbar button:hover { background:rgba(255,255,255,0.08); }
     #toolbar .spacer { margin-left:auto; color:#a0a6ad; font-size:12px; }
+
+    /* Recap list */
+    #recap { max-height:320px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
+    .recap-item { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:6px 8px; border-radius:8px; }
+    .recap-item:hover { background:#101318; }
+    .recap-item.selected { outline:1px solid #3578ff; background:#0d1320; }
+    .pill { background:#0f1115; border:1px solid #2b2f36; border-radius:999px; padding:3px 8px; font-size:12px; color:#cfd3d7; }
+    .editable { border-bottom:1px dashed #3a8fff; cursor:text; }
+    .sep { color:#5f6772; }
   </style>
 </head>
 <body>
@@ -155,8 +163,15 @@
         </div>
 
         <button id="addComp" style="margin-top:10px; width:100%">Aggiungi composizione</button>
+      </div>
 
-        <div style="margin-top:6px;font-size:12px;color:#a0a6ad">TUTTO in pixel interi (nessuna virgola). Snap morbido alla griglia e ai bordi/centri delle altre composizioni.</div>
+      <!-- RECAP LIST -->
+      <div class="panel">
+        <div style="font-weight:700; margin-bottom:8px">Composizioni (recap & modifica rapida)</div>
+        <div id="recap"></div>
+        <div style="margin-top:8px; font-size:12px; color:#a0a6ad">
+          Clicca su qualsiasi valore per modificarlo. Invio per confermare.
+        </div>
       </div>
     </section>
 
@@ -192,7 +207,7 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset TL e BR dinamici • Offset iniziale a mano.
+      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset TL e BR dinamici • Offset iniziale a mano • Recap modificabile.
     </div>
   </footer>
 
@@ -228,7 +243,6 @@
   const startYInput = document.getElementById('startY');
   const addCompBtn = document.getElementById('addComp');
 
-  // Toolbar + modal rinomina
   const renameBtn = document.getElementById('renameBtn');
   const dupBtn = document.getElementById('duplicateBtn');
   const delBtn = document.getElementById('deleteBtn');
@@ -237,9 +251,13 @@
   const renameSave = document.getElementById('renameSave');
   const renameCancel = document.getElementById('renameCancel');
 
+  const recap = document.getElementById('recap');
+
   // Utilities
-  const toInt = (v, fb) => { const n = parseInt(String(v).replace(/[^0-9]/g,''),10); return Number.isFinite(n) && n>=0 ? n : fb; };
+  const toInt = (v, fb) => { const n = parseInt(String(v).replace(/[^0-9]/g,''),10); return Number.isFinite(n) ? n : fb; };
+  const clampPos = (n)=> Math.max(0, n);
   const px = (n)=> Math.round(n) + 'px';
+  const uid = ()=> Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   function applyCanvasSize(w,h){
     state.canvas.w = w; state.canvas.h = h;
@@ -263,8 +281,9 @@
     state.selected = el;
     if (state.selected) state.selected.classList.add('selected');
     updateToolbarState();
+    highlightRecapSelection();
   }
-  function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateToolbarState(); } }
+  function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateToolbarState(); highlightRecapSelection(); } }
   function updateToolbarState(){ const has = !!state.selected; dupBtn.disabled = !has; delBtn.disabled = !has; renameBtn.disabled = !has; }
 
   // ---- Auto-fit testo (nome, dimensioni, offset) ----
@@ -295,43 +314,30 @@
     const offBR  = el.querySelector('.offsetBR');
 
     if (nameEl && sizeEl) {
-      const padH = 16; // padding orizzontale totale
-      const padV = 8;  // padding verticale totale
+      const padH = 16, padV = 8;
       const innerW = el.clientWidth - padH;
       const innerH = el.clientHeight - padV;
 
       const nameMaxH = Math.max(10, Math.floor(innerH * 0.70));
       const sizeMaxH = Math.max(10, Math.floor(innerH * 0.25));
 
-      const nameText = nameEl.textContent || "";
-      const sizeText = sizeEl.textContent || "";
-
-      const namePx = maxFontThatFits(nameText, "800", innerW, nameMaxH, 8, 160);
-      const sizePx = maxFontThatFits(sizeText, "400", innerW, sizeMaxH, 8, 64);
+      const namePx = maxFontThatFits(nameEl.textContent||"", "800", innerW, nameMaxH, 8, 160);
+      const sizePx = maxFontThatFits(sizeEl.textContent||"", "400", innerW, sizeMaxH, 8, 64);
 
       nameEl.style.fontSize = namePx + "px";
       sizeEl.style.fontSize = sizePx + "px";
     }
 
-    // OFFSET TL
-    if (offTL) {
-      const text = offTL.textContent || "";
+    const fitCorner = (elCorner)=>{
+      if (!elCorner) return;
+      const text = elCorner.textContent || "";
       const maxWidth  = Math.max(20, Math.floor(el.clientWidth * 0.55) - 8);
       const maxHeight = Math.max(10, Math.floor(el.clientHeight * 0.18) - 6);
       const f = maxFontThatFits(text, "600", maxWidth, maxHeight, 9, 22);
-      if (f < MIN_OFFSET_FONT) offTL.style.display = 'none';
-      else { offTL.style.display='inline-block'; offTL.style.fontSize = f + 'px'; }
-    }
-
-    // OFFSET BR
-    if (offBR) {
-      const text = offBR.textContent || "";
-      const maxWidth  = Math.max(20, Math.floor(el.clientWidth * 0.55) - 8);
-      const maxHeight = Math.max(10, Math.floor(el.clientHeight * 0.18) - 6);
-      const f = maxFontThatFits(text, "600", maxWidth, maxHeight, 9, 22);
-      if (f < MIN_OFFSET_FONT) offBR.style.display = 'none';
-      else { offBR.style.display='inline-block'; offBR.style.fontSize = f + 'px'; }
-    }
+      elCorner.style.display = (f < MIN_OFFSET_FONT) ? 'none' : 'inline-block';
+      if (f >= MIN_OFFSET_FONT) elCorner.style.fontSize = f + 'px';
+    };
+    fitCorner(offTL); fitCorner(offBR);
   }
 
   // ---- Offset labels ----
@@ -342,14 +348,10 @@
     const y = Math.round(parseFloat(el.style.top)  || 0);
     const w = el.offsetWidth;
     const h = el.offsetHeight;
-
     if (offTL) offTL.textContent = `(${x}, ${y})`;
-    if (offBR) {
-      const x2 = x + w - 1;
-      const y2 = y + h - 1;
-      offBR.textContent = `(${x2}, ${y2})`;
-    }
+    if (offBR) offBR.textContent = `(${x + w - 1}, ${y + h - 1})`;
     fitLabels(el);
+    refreshRecap(); // tiene la lista in sync in tempo reale
   }
 
   // Drag + Snap
@@ -367,7 +369,6 @@
       const curLeft = parseFloat(el.style.left) || 0;
       const curTop  = parseFloat(el.style.top)  || 0;
       drag = { offsetX: pointerWorldX - curLeft, offsetY: pointerWorldY - curTop };
-      el.classList.add('dragging');
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', end);
       window.addEventListener('touchmove', move, { passive:false });
@@ -384,7 +385,7 @@
       let nx = pointerWorldX - drag.offsetX;
       let ny = pointerWorldY - drag.offsetY;
 
-      // --- SNAP ad altri rettangoli (bordi e centri) ---
+      // SNAP ad altri rettangoli
       const comps = [...document.querySelectorAll('.comp')].filter(n=>n!==el);
       let bestDX = Infinity, bestNX = nx; let bestDY = Infinity, bestNY = ny;
       const L = nx, R = nx + w, CX = nx + w/2;
@@ -420,13 +421,12 @@
       }
       nx = bestNX; ny = bestNY;
 
-      // --- SNAP alla griglia (tile) ---
+      // SNAP alla griglia (tile)
       const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
       const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-      const originX = 0, originY = 0;
-      const nearestGX = originX + Math.round((nx - originX)/tileW)*tileW;
+      const nearestGX = Math.round(nx / tileW) * tileW;
+      const nearestGY = Math.round(ny / tileH) * tileH;
       if (Math.abs(nx - nearestGX) <= SNAP_THRESHOLD) nx = nearestGX;
-      const nearestGY = originY + Math.round((ny - originY)/tileH)*tileH;
       if (Math.abs(ny - nearestGY) <= SNAP_THRESHOLD) ny = nearestGY;
 
       // clamp entro canvas
@@ -436,11 +436,11 @@
       nx = Math.round(nx); ny = Math.round(ny);
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
-      updateOffsetLabels(el); // aggiorna TL e BR + auto-fit
+      updateOffsetLabels(el);
     };
 
     const end = ()=>{
-      drag = null; el.classList.remove('dragging');
+      drag = null;
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', end);
       window.removeEventListener('touchmove', move);
@@ -455,46 +455,41 @@
   // Aggiunta composizione
   function addComposition(){
     const name = (compNameInput.value || `Composizione ${state.counter+1}`).trim();
-    const cols = toInt(colsInput.value, 1);
-    const rows = toInt(rowsInput.value, 1);
-    const tileW = toInt(tileWInput.value, 1);
-    const tileH = toInt(tileHInput.value, 1);
+    const cols = Math.max(1, toInt(colsInput.value, 1));
+    const rows = Math.max(1, toInt(rowsInput.value, 1));
+    const tileW = Math.max(1, toInt(tileWInput.value, 1));
+    const tileH = Math.max(1, toInt(tileHInput.value, 1));
 
     const w = cols * tileW;
     const h = rows * tileH;
 
     const el = document.createElement('div');
     el.className = 'comp';
+    el.dataset.id = uid();
     el.style.width = px(w);
     el.style.height = px(h);
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // Label offset TL
-    const offTL = document.createElement('div');
-    offTL.className = 'offset';
-    el.appendChild(offTL);
-    // Label offset BR
-    const offBR = document.createElement('div');
-    offBR.className = 'offsetBR';
-    el.appendChild(offBR);
+    // Label offset TL e BR
+    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
+    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
 
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
-    // offset iniziale manuale
-    let nx = toInt(startXInput.value, 0);
-    let ny = toInt(startYInput.value, 0);
-    // clamp entro canvas
-    nx = Math.max(0, Math.min(state.canvas.w - w, nx));
-    ny = Math.max(0, Math.min(state.canvas.h - h, ny));
+    // offset iniziale
+    let nx = clampPos(toInt(startXInput.value, 0));
+    let ny = clampPos(toInt(startYInput.value, 0));
+    nx = Math.min(state.canvas.w - w, nx);
+    ny = Math.min(state.canvas.h - h, ny);
     el.style.left = px(nx);
     el.style.top  = px(ny);
 
     screen.appendChild(el);
     makeDraggable(el);
-    updateOffsetLabels(el); // include fitLabels
+    updateOffsetLabels(el);
     selectComp(el);
     state.counter++;
   }
@@ -508,15 +503,14 @@
 
     const el = document.createElement('div');
     el.className = 'comp';
+    el.dataset.id = uid();
     el.style.width = px(w);
     el.style.height = px(h);
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // Offset TL
     const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
-    // Offset BR
     const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
 
     const nameSrc = src.querySelector('.name')?.textContent || `Composizione`;
@@ -534,23 +528,26 @@
     makeDraggable(el);
     updateOffsetLabels(el);
     selectComp(el);
-    state.counter++;
   });
 
-  delBtn.addEventListener('click', ()=>{ if(!state.selected) return; state.selected.remove(); state.selected=null; updateToolbarState(); });
+  delBtn.addEventListener('click', ()=>{ if(!state.selected) return; const next = state.selected.nextElementSibling || state.selected.previousElementSibling; state.selected.remove(); state.selected = null; updateToolbarState(); refreshRecap(); if(next){ selectComp(next); } });
 
   // Rinomina (modal)
   function openRename(){ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); }
   function closeRename(){ renameModal.style.display='none'; }
-  function saveRename(){ if(!state.selected) return; const v = (renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent = v; fitLabels(state.selected); } closeRename(); }
+  function saveRename(){ if(!state.selected) return; const v = (renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent = v; fitLabels(state.selected); refreshRecap(); } closeRename(); }
   renameBtn.addEventListener('click', openRename);
   renameCancel.addEventListener('click', closeRename);
   renameSave.addEventListener('click', saveRename);
   renameModal.addEventListener('click', (e)=>{ if(e.target===renameModal) closeRename(); });
   renameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') saveRename(); if(e.key==='Escape') closeRename(); });
 
-  // Canvas
-  applyCanvasBtn.addEventListener('click', ()=>{ const w=toInt(canvasWInput.value,state.canvas.w); const h=toInt(canvasHInput.value,state.canvas.h); applyCanvasSize(w,h); });
+  // CANVAS UI
+  applyCanvasBtn.addEventListener('click', ()=>{
+    const w = Math.max(1, toInt(canvasWInput.value, state.canvas.w));
+    const h = Math.max(1, toInt(canvasHInput.value, state.canvas.h));
+    applyCanvasSize(w,h);
+  });
   fitBtn.addEventListener('click', fitToViewport);
   addCompBtn.addEventListener('click', addComposition);
   screen.addEventListener('click', ()=>{ clearSelection(); });
@@ -558,8 +555,195 @@
   new ResizeObserver(()=>fitToViewport()).observe(viewport);
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
 
+  // ===== Recap list =====
+  function getAllComps(){ return [...document.querySelectorAll('.comp')]; }
+
+  function compData(el){
+    const w = el.offsetWidth, h = el.offsetHeight;
+    const tileW = parseInt(el.dataset.tileW||'1',10)||1;
+    const tileH = parseInt(el.dataset.tileH||'1',10)||1;
+    const cols = Math.round(w / tileW);
+    const rows = Math.round(h / tileH);
+    const x = Math.round(parseFloat(el.style.left)||0);
+    const y = Math.round(parseFloat(el.style.top) ||0);
+    const name = el.querySelector('.name')?.textContent || '';
+    const id = el.dataset.id || '';
+    return {id, name, cols, rows, tileW, tileH, w, h, x, y};
+  }
+
+  function refreshRecap(){
+    const items = getAllComps().map(compData);
+    recap.innerHTML = '';
+    for (const it of items){
+      const row = document.createElement('div');
+      row.className = 'recap-item';
+      row.dataset.id = it.id;
+      if (state.selected && state.selected.dataset.id === it.id) row.classList.add('selected');
+
+      const makeEditable = (label, value, field, widthCh=6)=>{
+        const span = document.createElement('span');
+        span.className = 'pill editable';
+        span.style.minWidth = `${widthCh}ch`;
+        span.contentEditable = 'true';
+        span.spellcheck = false;
+        span.dataset.field = field;
+        span.textContent = String(value);
+        span.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); span.blur(); } });
+        span.addEventListener('focus', ()=> selectById(it.id));
+        span.addEventListener('blur', ()=> applyEdit(it.id, field, span.textContent));
+        const wrap = document.createElement('span');
+        wrap.className = 'pill';
+        wrap.style.background = 'transparent';
+        wrap.style.border = 'none';
+        wrap.style.padding = '0';
+        const lab = document.createElement('span');
+        lab.className = 'pill';
+        lab.textContent = label;
+        lab.style.marginRight = '4px';
+        const group = document.createElement('span');
+        group.appendChild(lab);
+        group.appendChild(span);
+        group.style.display = 'inline-flex';
+        group.style.alignItems = 'center';
+        group.style.gap = '6px';
+        return group;
+      };
+
+      const sep = ()=>{ const s=document.createElement('span'); s.className='sep'; s.textContent='•'; return s; }
+
+      // Nome
+      const nameEl = makeEditable('Nome', it.name, 'name', Math.max(6, it.name.length));
+      // Tiles (cols x rows)
+      const colsEl = makeEditable('Cols', it.cols, 'cols', 4);
+      const rowsEl = makeEditable('Rows', it.rows, 'rows', 4);
+      // Tile size
+      const twEl = makeEditable('TileW', it.tileW, 'tileW', 5);
+      const thEl = makeEditable('TileH', it.tileH, 'tileH', 5);
+      // Offset
+      const xEl = makeEditable('X', it.x, 'x', 4);
+      const yEl = makeEditable('Y', it.y, 'y', 4);
+      // Risoluzione totale (solo display)
+      const tot = document.createElement('span');
+      tot.className = 'pill';
+      tot.textContent = `Tot: ${it.w}×${it.h}px`;
+
+      // Compose row
+      row.appendChild(nameEl);
+      row.appendChild(sep());
+      const groupTiles = document.createElement('span');
+      groupTiles.className='pill';
+      groupTiles.style.gap='6px'; groupTiles.style.display='inline-flex'; groupTiles.style.alignItems='center';
+      groupTiles.style.background='transparent'; groupTiles.style.border='none'; groupTiles.style.padding='0';
+      groupTiles.append('Tiles:', colsEl.querySelector('.editable'), document.createTextNode('×'), rowsEl.querySelector('.editable'));
+      row.appendChild(groupTiles);
+
+      row.appendChild(sep());
+      const groupPix = document.createElement('span');
+      groupPix.className='pill';
+      groupPix.style.gap='6px'; groupPix.style.display='inline-flex'; groupPix.style.alignItems='center';
+      groupPix.style.background='transparent'; groupPix.style.border='none'; groupPix.style.padding='0';
+      groupPix.append('Tile(px):', twEl.querySelector('.editable'), document.createTextNode('×'), thEl.querySelector('.editable'));
+      row.appendChild(groupPix);
+
+      row.appendChild(sep());
+      row.appendChild(tot);
+
+      row.appendChild(sep());
+      const groupOff = document.createElement('span');
+      groupOff.className='pill';
+      groupOff.style.gap='6px'; groupOff.style.display='inline-flex'; groupOff.style.alignItems='center';
+      groupOff.style.background='transparent'; groupOff.style.border='none'; groupOff.style.padding='0';
+      groupOff.append('Offset:', xEl.querySelector('.editable'), document.createTextNode(','), yEl.querySelector('.editable'));
+      row.appendChild(groupOff);
+
+      // Selezione al click
+      row.addEventListener('click', (e)=> { if(!(e.target instanceof HTMLElement && e.target.isContentEditable)){ selectById(it.id); } });
+
+      recap.appendChild(row);
+    }
+  }
+
+  function selectById(id){
+    const el = getAllComps().find(n=> n.dataset.id===id);
+    if (el) selectComp(el);
+    highlightRecapSelection();
+  }
+
+  function highlightRecapSelection(){
+    const idSel = state.selected?.dataset.id;
+    recap.querySelectorAll('.recap-item').forEach(r=>{
+      r.classList.toggle('selected', r.dataset.id===idSel);
+    });
+  }
+
+  // Applicazione modifiche dal recap
+  function applyEdit(id, field, rawValue){
+    const el = getAllComps().find(n=> n.dataset.id===id);
+    if (!el) return;
+    const val = toInt(rawValue, NaN);
+
+    // Dati attuali
+    let w = el.offsetWidth, h = el.offsetHeight;
+    let tileW = parseInt(el.dataset.tileW||'1',10)||1;
+    let tileH = parseInt(el.dataset.tileH||'1',10)||1;
+    let cols = Math.round(w / tileW);
+    let rows = Math.round(h / tileH);
+    let x = Math.round(parseFloat(el.style.left)||0);
+    let y = Math.round(parseFloat(el.style.top) ||0);
+
+    const nameNode = el.querySelector('.name');
+
+    if (field === 'name'){
+      const text = (rawValue||'').trim();
+      if (text) { nameNode.textContent = text; fitLabels(el); }
+      refreshRecap();
+      return;
+    }
+
+    if (!Number.isFinite(val)) { refreshRecap(); return; }
+
+    switch(field){
+      case 'cols': cols = Math.max(1, val); w = cols * tileW; break;
+      case 'rows': rows = Math.max(1, val); h = rows * tileH; break;
+      case 'tileW': tileW = Math.max(1, val); el.dataset.tileW = String(tileW); w = cols * tileW; break;
+      case 'tileH': tileH = Math.max(1, val); el.dataset.tileH = String(tileH); h = rows * tileH; break;
+      case 'x': x = clampPos(val); break;
+      case 'y': y = clampPos(val); break;
+    }
+
+    // Clamp a canvas
+    w = Math.max(1, Math.min(state.canvas.w, w));
+    h = Math.max(1, Math.min(state.canvas.h, h));
+    x = Math.min(state.canvas.w - w, Math.max(0, x));
+    y = Math.min(state.canvas.h - h, Math.max(0, y));
+
+    // Applica dimensioni e griglia interna
+    el.style.width = px(w);
+    el.style.height = px(h);
+    el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
+    el.dataset.tileW = String(tileW);
+    el.dataset.tileH = String(tileH);
+
+    // Aggiorna testi interni
+    const sizeEl = el.querySelector('.size');
+    sizeEl.textContent = `${w}×${h}px`;
+
+    // Posizione (se modificata)
+    el.style.left = px(x);
+    el.style.top  = px(y);
+
+    // Re-fit testi e offset
+    updateOffsetLabels(el);
+
+    // Mantiene selezione e recap sync
+    selectComp(el);
+    refreshRecap();
+  }
+
   // Boot
   applyCanvasSize(parseInt(canvasWInput.value,10)||1920, parseInt(canvasHInput.value,10)||1080);
+  addComposition(); // facoltativo: crea un esempio iniziale
+  refreshRecap();
   updateToolbarState();
 })();
 </script>
