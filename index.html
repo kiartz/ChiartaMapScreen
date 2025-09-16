@@ -44,10 +44,21 @@
         linear-gradient(to right, rgba(69,184,255,0.30) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(69,184,255,0.30) 1px, transparent 1px);
       background-size:128px 128px, 128px 128px;
+      padding: 4px 8px; /* leggero respiro per il testo */
     }
     .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff; }
-    .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; font-size: clamp(18px, 4vw, 56px); line-height:1.1; pointer-events:none; }
-    .comp .size { margin-top:4px; font-size: clamp(12px, 2.6vw, 24px); color:#d6e8ff; text-shadow:0 1px 2px #000; pointer-events:none; }
+
+    /* Testo auto-fit (font-size gestito da JS) */
+    .comp .name,
+    .comp .size {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.1;
+      pointer-events: none;
+    }
+    .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
+    .comp .size { color:#d6e8ff; text-shadow:0 1px 2px #000; margin-top:4px; }
 
     label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
     input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:8px}
@@ -161,7 +172,7 @@
   </div>
 
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo.</div>
   </footer>
 
 <script>
@@ -231,6 +242,53 @@
   }
   function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateToolbarState(); } }
   function updateToolbarState(){ const has = !!state.selected; dupBtn.disabled = !has; delBtn.disabled = !has; renameBtn.disabled = !has; }
+
+  // ---- Auto-fit testo (nome e dimensioni) ----
+  const _measureCanvas = document.createElement('canvas');
+  const _mctx = _measureCanvas.getContext('2d');
+  const FONT_FAMILY = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
+
+  function textWidthPx(text, weight, sizePx) {
+    _mctx.font = `${weight} ${sizePx}px ${FONT_FAMILY}`;
+    return Math.ceil(_mctx.measureText(text).width);
+  }
+  // Trova la dimensione massima (in px) che entra in width/height
+  function maxFontThatFits(text, weight, maxWidth, maxHeight, minPx=8, maxPx=160) {
+    let lo = minPx, hi = maxPx, best = minPx;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const w = textWidthPx(text, weight, mid);
+      const h = Math.ceil(mid * 1.1); // line-height ~1.1
+      if (w <= maxWidth && h <= maxHeight) { best = mid; lo = mid + 1; }
+      else { hi = mid - 1; }
+    }
+    return best;
+  }
+  // Applica l'auto-fit a una singola .comp
+  function fitLabels(el) {
+    const nameEl = el.querySelector('.name');
+    const sizeEl = el.querySelector('.size');
+    if (!nameEl || !sizeEl) return;
+
+    const padH = 16; // padding totale orizzontale (4+8+4)
+    const padV = 8;  // padding totale verticale
+
+    const innerW = el.clientWidth - padH;
+    const innerH = el.clientHeight - padV;
+
+    // Budget verticale: 70% al nome, 25% alle dimensioni
+    const nameMaxH = Math.max(10, Math.floor(innerH * 0.70));
+    const sizeMaxH = Math.max(10, Math.floor(innerH * 0.25));
+
+    const nameText = nameEl.textContent || "";
+    const sizeText = sizeEl.textContent || "";
+
+    const namePx = maxFontThatFits(nameText, "800", innerW, nameMaxH, 8, 160);
+    const sizePx = maxFontThatFits(sizeText, "400", innerW, sizeMaxH, 8, 64);
+
+    nameEl.style.fontSize = namePx + "px";
+    sizeEl.style.fontSize = sizePx + "px";
+  }
 
   // Drag + Snap
   function makeDraggable(el){
@@ -364,6 +422,7 @@
 
     screen.appendChild(el);
     makeDraggable(el);
+    fitLabels(el);           // auto-fit testo
     selectComp(el);
     state.counter++;
   }
@@ -396,6 +455,7 @@
 
     screen.appendChild(el);
     makeDraggable(el);
+    fitLabels(el);           // auto-fit testo
     selectComp(el);
     state.counter++;
   });
@@ -405,7 +465,7 @@
   // Rinomina (modal)
   function openRename(){ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.classList.add('show'); renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); }
   function closeRename(){ renameModal.classList.remove('show'); }
-  function saveRename(){ if(!state.selected) return; const v = (renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent = v; } closeRename(); }
+  function saveRename(){ if(!state.selected) return; const v = (renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent = v; fitLabels(state.selected); } closeRename(); }
   renameBtn.addEventListener('click', openRename);
   renameCancel.addEventListener('click', closeRename);
   renameSave.addEventListener('click', saveRename);
