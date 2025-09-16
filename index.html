@@ -28,14 +28,6 @@
         linear-gradient(to bottom, #181c24 1px, transparent 1px);
       background-size:100px 100px, 100px 100px; }
 
-    /* Badge dimensione canvas (in alto a destra del viewport) */
-    #canvasBadge {
-      position:absolute; top:8px; right:8px; z-index:10;
-      background:rgba(10,14,20,0.75); border:1px solid #2b2f36; color:#cfe6ff;
-      font-size:12px; padding:4px 8px; border-radius:8px; backdrop-filter: blur(4px);
-      pointer-events:none;
-    }
-
     /* Composizioni */
     .comp {
       position:absolute; z-index:2; box-sizing:border-box;
@@ -76,17 +68,23 @@
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
 
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
     .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
 
-    /* Toolbar principale sopra il canvas */
-    #toolbar { display:flex; gap:6px; margin-bottom:6px; align-items:center; }
-    #toolbar button { background:none; border:1px solid #444; cursor:pointer; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
-    #toolbar button:hover { background:rgba(255,255,255,0.08); }
-    #toolbar .spacer { margin-left:auto; color:#a0a6ad; font-size:12px; }
+    /* Toolbar sopra il canvas */
+    #toolbar { display:flex; gap:6px; margin-bottom:6px; align-items:center; flex-wrap:wrap; }
+    #toolbar button.icon { background:none; border:1px solid #444; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
+    #toolbar button.icon:hover { background:rgba(255,255,255,0.08); }
+    #toolbar .spacer { flex:1; }
 
-    /* Mini-toolbar Progetto (compattata) */
+    /* Inline canvas size editor (compatto) */
+    .canvas-size { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
+    .canvas-size input { width:84px; padding:5px 6px; font-size:12px; }
+    .canvas-size .x { color:#88909a; font-size:12px; }
+    .canvas-size .btns { display:flex; gap:4px; }
+    .canvas-size .btns button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
+    .canvas-size .btns button:hover { background:rgba(255,255,255,0.08); }
+
+    /* Project bar compatta */
     #projectBar { display:flex; gap:6px; align-items:center; }
     #projectBar input { padding:6px 8px; font-size:13px; }
     #projectBar button, #projectBar label.btn {
@@ -94,7 +92,6 @@
     }
     #projectBar button:hover, #projectBar label.btn:hover { background:rgba(255,255,255,0.08); }
     #projectBar .grow { flex:1; min-width:0; }
-    #projectBar small { color:#88909a; }
 
     /* Recap */
     #recap { max-height:280px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
@@ -125,26 +122,7 @@
           <label for="loadFile" class="btn" title="Carica (JSON)">📂</label>
           <input id="loadFile" type="file" accept=".json,application/json" style="display:none">
         </div>
-        <div style="margin-top:6px"><small>Tip: i campi accettano formule come <code>*2</code>, <code>+64</code>, <code>128*3</code></small></div>
-      </div>
-
-      <!-- Canvas controls compatti -->
-      <div class="panel" style="padding:10px">
-        <div style="font-weight:700; margin-bottom:6px">Canvas</div>
-        <div class="grid3">
-          <div>
-            <label for="canvasW">W (px)</label>
-            <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2">
-          </div>
-          <div>
-            <label for="canvasH">H (px)</label>
-            <input id="canvasH" type="text" value="1080" placeholder="1080, *2">
-          </div>
-          <div style="display:flex; gap:6px; align-items:flex-end">
-            <button id="applyCanvas" style="flex:1">Applica</button>
-            <button id="fit" class="secondary" style="flex:1">Fit</button>
-          </div>
-        </div>
+        <div style="margin-top:6px"><small>I campi accettano formule: <code>*2</code>, <code>+64</code>, <code>128*3</code>…</small></div>
       </div>
 
       <!-- Nuova composizione COMPATTA -->
@@ -175,13 +153,24 @@
     <section id="work">
       <div class="panel" style="display:flex; flex-direction:column; gap:8px; min-height:72vh">
         <div id="toolbar">
-          <button id="renameBtn" title="Rinomina">✎</button>
-          <button id="duplicateBtn" title="Duplica">⧉</button>
-          <button id="deleteBtn" title="Elimina">🗑️</button>
+          <button id="renameBtn" class="icon" title="Rinomina">✎</button>
+          <button id="duplicateBtn" class="icon" title="Duplica">⧉</button>
+          <button id="deleteBtn" class="icon" title="Elimina">🗑️</button>
           <div class="spacer"></div>
+
+          <!-- Canvas size editor spostato qui -->
+          <div class="canvas-size" title="Dimensione canvas (formule supportate)">
+            <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2" aria-label="Canvas width">
+            <span class="x">×</span>
+            <input id="canvasH" type="text" value="1080" placeholder="1080, *2" aria-label="Canvas height">
+            <div class="btns">
+              <button id="applyCanvas" title="Applica">Applica</button>
+              <button id="fit" title="Fit">Fit</button>
+            </div>
+          </div>
         </div>
+
         <div id="viewport">
-          <div id="canvasBadge"><span id="canvasInfoTop">–</span></div>
           <div id="screenWrap">
             <div id="screen"></div>
           </div>
@@ -236,11 +225,6 @@
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
-  const canvasInfoTop = document.getElementById('canvasInfoTop');
-  const applyCanvasBtn = document.getElementById('applyCanvas');
-  const fitBtn = document.getElementById('fit');
-  const canvasWInput = document.getElementById('canvasW');
-  const canvasHInput = document.getElementById('canvasH');
 
   const projectNameInput = document.getElementById('projectName');
   const saveBtn = document.getElementById('saveBtn');
@@ -263,13 +247,17 @@
   const renameSave = document.getElementById('renameSave');
   const renameCancel = document.getElementById('renameCancel');
 
+  const canvasWInput = document.getElementById('canvasW');
+  const canvasHInput = document.getElementById('canvasH');
+  const applyCanvasBtn = document.getElementById('applyCanvas');
+  const fitBtn = document.getElementById('fit');
+
   const recap = document.getElementById('recap');
 
   // ===== Canvas sizing =====
   function applyCanvasSize(w,h){
     state.canvas.w = w; state.canvas.h = h;
     screen.style.width = px(w); screen.style.height = px(h);
-    canvasInfoTop.textContent = `${w}×${h}px`;
     fitToViewport();
     // Clamp rettangoli se canvas si è ridotto
     document.querySelectorAll('.comp').forEach(el=>{
@@ -487,14 +475,14 @@
   }
 
   // ===== Toolbar =====
-  const renameOpen = ()=>{ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); };
-  const renameClose= ()=>{ renameModal.style.display='none'; };
+  const renameOpen = ()=>{ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; document.getElementById('renameModal').style.display='flex'; renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); };
+  const renameClose= ()=>{ document.getElementById('renameModal').style.display='none'; };
   const renameSaveFn = ()=>{ if(!state.selected) return; const v=(renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent=v; fitLabels(state.selected); refreshRecap(); } renameClose(); };
 
   renameBtn.addEventListener('click', renameOpen);
   renameCancel.addEventListener('click', renameClose);
   renameSave.addEventListener('click', renameSaveFn);
-  renameModal.addEventListener('click', (e)=>{ if(e.target===renameModal) renameClose(); });
+  document.getElementById('renameModal').addEventListener('click', (e)=>{ if(e.target.id==='renameModal') renameClose(); });
   renameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') renameSaveFn(); if(e.key==='Escape') renameClose(); });
 
   dupBtn.addEventListener('click', ()=>{
@@ -539,7 +527,7 @@
     if(next){ selectComp(next); }
   });
 
-  // ===== Canvas controls =====
+  // ===== Canvas controls nella toolbar =====
   applyCanvasBtn.addEventListener('click', ()=>{
     const newW = Math.max(1, evalIntExpression(canvasWInput.value, state.canvas.w) || state.canvas.w);
     const newH = Math.max(1, evalIntExpression(canvasHInput.value, state.canvas.h) || state.canvas.h);
@@ -548,6 +536,8 @@
     canvasHInput.value = String(newH);
   });
   fitBtn.addEventListener('click', fitToViewport);
+
+  // ===== Aggiungi composizione =====
   addCompBtn.addEventListener('click', addComposition);
   screen.addEventListener('click', ()=>{ clearSelection(); });
 
@@ -602,9 +592,9 @@
 
       const nameEl = makeEditable('Nome', it.name, 'name', Math.max(6, it.name.length));
       const colsEl = makeEditable('Cols', it.cols, 'cols', 4);
-      const rowsEl = makeEditable('Rows', it.rows, 'rows', 4);
-      const twEl   = makeEditable('TileW', it.tileW, 'tileW', 5);
-      const thEl   = makeEditable('TileH', it.tileH, 'tileH', 5);
+      const rowsEl = makeEditable('Rows', it.rows,  'rows', 4);
+      const twEl   = makeEditable('TileW', it.tileW,'tileW', 5);
+      const thEl   = makeEditable('TileH', it.tileH,'tileH', 5);
       const xEl    = makeEditable('X', it.x, 'x', 4);
       const yEl    = makeEditable('Y', it.y, 'y', 4);
 
@@ -691,7 +681,6 @@
   }
 
   // ===== Salva / Carica =====
-  function getAllComps(){ return [...document.querySelectorAll('.comp')]; }
   function collectProject(){
     const comps = getAllComps().map(el=>{
       const w = el.offsetWidth, h = el.offsetHeight;
