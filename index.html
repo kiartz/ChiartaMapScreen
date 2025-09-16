@@ -30,8 +30,6 @@
     /* Composizioni (rettangoli) */
     .comp {
       position:absolute; z-index:2; box-sizing:border-box;
-      /* bordo luminoso interno */
-      box-shadow: inset 0 0 0 2px var(--acc);
       background:rgba(69,184,255,0.12);
       cursor:grab; touch-action:none; user-select:none;
       background-image:
@@ -41,7 +39,7 @@
       display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
     }
     .comp.dragging { cursor:grabbing; }
-    .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff, inset 0 0 0 2px var(--acc); }
+    .comp.selected { /* bordo gestito da ::after */ }
     .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; font-size: clamp(14px, 3.2vw, 40px); line-height:1.1; pointer-events:none; }
     .comp .size { margin-top:4px; font-size: clamp(10px, 2vw, 18px); color:#d6e8ff; text-shadow:0 1px 2px #000; pointer-events:none; }
 
@@ -51,6 +49,8 @@
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .comp::after{content:"";position:absolute;inset:0;border:2px solid var(--acc);box-sizing:border-box;pointer-events:none}
+    .comp.selected::after{border-color:#7fd0ff;border-width:3px}
   </style>
 </head>
 <body>
