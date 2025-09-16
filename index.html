@@ -11,7 +11,7 @@
     header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
     main { display:flex; gap:12px; padding:12px; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
-    #left { width:420px; display:flex; flex-direction:column; gap:12px; }
+    #left { width:420px; display:flex; flex-direction:column; gap:10px; }
     #work { flex:1; display:flex; flex-direction:column; gap:10px; }
 
     /* Viewport / Canvas */
@@ -19,9 +19,7 @@
     #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
     #screen {
       position:absolute; left:10px; top:10px;
-      background:#0c0d11;
-      border:1px solid #1e2229;
-      box-sizing:content-box;
+      background:#0c0d11; border:1px solid #1e2229; box-sizing:content-box;
       touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden;
     }
     #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
@@ -29,6 +27,14 @@
         linear-gradient(to right, #181c24 1px, transparent 1px),
         linear-gradient(to bottom, #181c24 1px, transparent 1px);
       background-size:100px 100px, 100px 100px; }
+
+    /* Badge dimensione canvas (in alto a destra del viewport) */
+    #canvasBadge {
+      position:absolute; top:8px; right:8px; z-index:10;
+      background:rgba(10,14,20,0.75); border:1px solid #2b2f36; color:#cfe6ff;
+      font-size:12px; padding:4px 8px; border-radius:8px; backdrop-filter: blur(4px);
+      pointer-events:none;
+    }
 
     /* Composizioni */
     .comp {
@@ -57,28 +63,41 @@
       background:rgba(10,15,20,0.55);
       border:1px solid rgba(127,208,255,0.35);
       border-radius:6px; padding:3px 6px;
-      max-width:55%;
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      max-width:55%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       line-height:1; pointer-events:none;
     }
     .comp .offset  { top:3px;    left:3px; }
     .comp .offsetBR{ bottom:3px; right:3px; }
 
-    label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
-    input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:8px}
-    input[type=number], input[type=text]{width:100%}
+    /* Form & pills */
+    label{display:block;font-size:11px;color:#cfd3d7;margin:0 0 3px}
+    input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:7px 8px;font-size:13px}
+    input[type=text]{width:100%}
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-    /* Toolbar */
-    #toolbar { display:flex; gap:8px; margin-bottom:6px; align-items:center; }
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+    .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+
+    /* Toolbar principale sopra il canvas */
+    #toolbar { display:flex; gap:6px; margin-bottom:6px; align-items:center; }
     #toolbar button { background:none; border:1px solid #444; cursor:pointer; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
     #toolbar button:hover { background:rgba(255,255,255,0.08); }
     #toolbar .spacer { margin-left:auto; color:#a0a6ad; font-size:12px; }
 
+    /* Mini-toolbar Progetto (compattata) */
+    #projectBar { display:flex; gap:6px; align-items:center; }
+    #projectBar input { padding:6px 8px; font-size:13px; }
+    #projectBar button, #projectBar label.btn {
+      background:none; border:1px solid #444; border-radius:8px; padding:6px 8px; font-size:13px; cursor:pointer; color:var(--ink);
+    }
+    #projectBar button:hover, #projectBar label.btn:hover { background:rgba(255,255,255,0.08); }
+    #projectBar .grow { flex:1; min-width:0; }
+    #projectBar small { color:#88909a; }
+
     /* Recap */
-    #recap { max-height:320px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
+    #recap { max-height:280px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
     .recap-item { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:6px 8px; border-radius:8px; }
     .recap-item:hover { background:#101318; }
     .recap-item.selected { outline:1px solid #3578ff; background:#0d1320; }
@@ -98,87 +117,58 @@
 
   <main>
     <section id="left">
-      <!-- PROGETTO -->
-      <div class="panel">
-        <div style="font-weight:700; margin-bottom:8px">Progetto</div>
-        <div>
-          <label for="projectName">Nome progetto</label>
-          <input id="projectName" type="text" placeholder="Es. Evento_MainStage">
-        </div>
-        <div style="display:flex; gap:8px; margin-top:8px">
-          <button id="saveBtn" style="flex:1">💾 Salva</button>
-          <label for="loadFile" class="secondary" style="flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer">📂 Carica</label>
+      <!-- Mini Project Bar (compatto) -->
+      <div class="panel" style="padding:10px">
+        <div id="projectBar">
+          <input id="projectName" type="text" class="grow" placeholder="Nome progetto (es. MainStage)" />
+          <button id="saveBtn" title="Salva (JSON)">💾</button>
+          <label for="loadFile" class="btn" title="Carica (JSON)">📂</label>
           <input id="loadFile" type="file" accept=".json,application/json" style="display:none">
         </div>
+        <div style="margin-top:6px"><small>Tip: i campi accettano formule come <code>*2</code>, <code>+64</code>, <code>128*3</code></small></div>
       </div>
 
-      <div class="panel">
-        <div style="font-weight:700; margin-bottom:8px">Canvas</div>
-        <div class="grid2">
+      <!-- Canvas controls compatti -->
+      <div class="panel" style="padding:10px">
+        <div style="font-weight:700; margin-bottom:6px">Canvas</div>
+        <div class="grid3">
           <div>
-            <label for="canvasW">Larghezza (px)</label>
-            <input id="canvasW" type="text" value="1920" placeholder="es. 1920, 1280*3, +10">
+            <label for="canvasW">W (px)</label>
+            <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2">
           </div>
           <div>
-            <label for="canvasH">Altezza (px)</label>
-            <input id="canvasH" type="text" value="1080" placeholder="es. 1080, 360*3, *2">
+            <label for="canvasH">H (px)</label>
+            <input id="canvasH" type="text" value="1080" placeholder="1080, *2">
+          </div>
+          <div style="display:flex; gap:6px; align-items:flex-end">
+            <button id="applyCanvas" style="flex:1">Applica</button>
+            <button id="fit" class="secondary" style="flex:1">Fit</button>
           </div>
         </div>
-        <div style="display:flex; gap:8px; margin-top:8px">
-          <button id="applyCanvas" style="flex:1">Applica</button>
-          <button id="fit" class="secondary" style="flex:1">Fit</button>
-        </div>
-        <div style="margin-top:8px;font-size:12px;color:#a0a6ad">Canvas attuale: <span id="canvasInfo">–</span></div>
       </div>
 
-      <div class="panel">
-        <div style="font-weight:700; margin-bottom:8px">Nuova composizione</div>
+      <!-- Nuova composizione COMPATTA -->
+      <div class="panel" style="padding:10px">
+        <div style="font-weight:700; margin-bottom:6px">Nuova composizione</div>
         <div>
           <label for="compName">Nome</label>
           <input id="compName" type="text" placeholder="Ledwall Main">
         </div>
-
-        <div class="grid2" style="margin-top:8px">
-          <div>
-            <label for="cols">Colonne (mattonelle)</label>
-            <input id="cols" type="text" value="8" placeholder="es. 8, *2, +3">
-          </div>
-          <div>
-            <label for="rows">Righe (mattonelle)</label>
-            <input id="rows" type="text" value="4" placeholder="es. 4, 2*2, +1">
-          </div>
-          <div>
-            <label for="tileW">Tile W (px)</label>
-            <input id="tileW" type="text" value="128" placeholder="es. 128, 64*2, +16">
-          </div>
-          <div>
-            <label for="tileH">Tile H (px)</label>
-            <input id="tileH" type="text" value="128" placeholder="es. 128, *2, -16">
-          </div>
+        <div class="grid6" style="margin-top:6px">
+          <div><label for="cols">Cols</label><input id="cols" type="text" value="8"  placeholder="8, *2"></div>
+          <div><label for="rows">Rows</label><input id="rows" type="text" value="4"  placeholder="4, +1"></div>
+          <div><label for="tileW">TileW</label><input id="tileW" type="text" value="128" placeholder="128, *2"></div>
+          <div><label for="tileH">TileH</label><input id="tileH" type="text" value="128" placeholder="128, -16"></div>
+          <div><label for="startX">X</label><input id="startX" type="text" value="0" placeholder="0, +128"></div>
+          <div><label for="startY">Y</label><input id="startY" type="text" value="0" placeholder="0, +128"></div>
         </div>
-
-        <!-- Offset iniziale -->
-        <div class="grid2" style="margin-top:8px">
-          <div>
-            <label for="startX">Offset X (px)</label>
-            <input id="startX" type="text" value="0" placeholder="es. 0, +128, *2">
-          </div>
-          <div>
-            <label for="startY">Offset Y (px)</label>
-            <input id="startY" type="text" value="0" placeholder="es. 0, +128, *2">
-          </div>
-        </div>
-
-        <button id="addComp" style="margin-top:10px; width:100%">Aggiungi composizione</button>
+        <button id="addComp" style="margin-top:8px; width:100%">Aggiungi</button>
       </div>
 
-      <!-- RECAP LIST -->
-      <div class="panel">
-        <div style="font-weight:700; margin-bottom:8px">Composizioni (recap & modifica rapida)</div>
+      <!-- Recap -->
+      <div class="panel" style="padding:10px">
+        <div style="font-weight:700; margin-bottom:6px">Composizioni</div>
         <div id="recap"></div>
-        <div style="margin-top:8px; font-size:12px; color:#a0a6ad">
-          Clicca su un valore per modificarlo. Puoi usare formule tipo <code>*2</code>, <code>+64</code>, <code>128*3</code>. Invio per confermare.
-        </div>
       </div>
     </section>
 
@@ -188,9 +178,10 @@
           <button id="renameBtn" title="Rinomina">✎</button>
           <button id="duplicateBtn" title="Duplica">⧉</button>
           <button id="deleteBtn" title="Elimina">🗑️</button>
-          <div class="spacer">Canvas: <span id="canvasInfoTop">–</span></div>
+          <div class="spacer"></div>
         </div>
         <div id="viewport">
+          <div id="canvasBadge"><span id="canvasInfoTop">–</span></div>
           <div id="screenWrap">
             <div id="screen"></div>
           </div>
@@ -214,13 +205,13 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset TL/BR dinamici • Offset iniziale a mano • Recap modificabile • Calcoli inline • Salva/Carica .json.
+      Drag fluido • Snap morbido • Bordi interni 3px pixel-perfect • Auto-fit testo • Offset TL/BR dinamici • Offset iniziale • Recap modificabile • Calcoli inline • Salva/Carica JSON.
     </div>
   </footer>
 
 <script>
 (() => {
-  // ===== Helpers calcolo espressioni intere =====
+  // ===== Helpers: espressioni intere =====
   function evalIntExpression(expr, base) {
     if (typeof expr !== 'string') expr = String(expr ?? '');
     const s = expr.trim();
@@ -229,17 +220,14 @@
     let finalExpr = cleaned;
     if (/^[+\-*/]/.test(cleaned)) finalExpr = `(${base}|0)${cleaned}`;
     let out = NaN;
-    try {
-      const f = new Function(`return (${finalExpr});`);
-      const val = f();
-      if (Number.isFinite(val)) out = Math.round(val);
-    } catch (_) { out = NaN; }
+    try { const f = new Function(`return (${finalExpr});`); const val = f(); if (Number.isFinite(val)) out = Math.round(val); }
+    catch(_) { out = NaN; }
     return out;
   }
   const px = (n)=> Math.round(n) + 'px';
   const uid = ()=> Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-  // ===== Stato & costanti UI =====
+  // ===== Stato =====
   const state = { canvas: { w:1920, h:1080 }, scale: 1, selected: null };
   const SNAP_THRESHOLD = 12;
   const MIN_OFFSET_FONT = 10;
@@ -248,7 +236,6 @@
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
-  const canvasInfo = document.getElementById('canvasInfo');
   const canvasInfoTop = document.getElementById('canvasInfoTop');
   const applyCanvasBtn = document.getElementById('applyCanvas');
   const fitBtn = document.getElementById('fit');
@@ -282,7 +269,6 @@
   function applyCanvasSize(w,h){
     state.canvas.w = w; state.canvas.h = h;
     screen.style.width = px(w); screen.style.height = px(h);
-    canvasInfo.textContent = `${w}×${h}px`;
     canvasInfoTop.textContent = `${w}×${h}px`;
     fitToViewport();
     // Clamp rettangoli se canvas si è ridotto
@@ -653,7 +639,6 @@
     });
   }
 
-  // Applica modifiche dal recap (con espressioni)
   function applyEdit(id, field, rawValue, baseValue){
     const el = getAllComps().find(n=> n.dataset.id===id);
     if (!el) return;
@@ -669,8 +654,7 @@
     if (field === 'name'){
       const text = (rawValue||'').trim();
       if (text) { el.querySelector('.name').textContent = text; fitLabels(el); }
-      refreshRecap();
-      return;
+      refreshRecap(); return;
     }
 
     const v = evalIntExpression(rawValue, baseValue);
@@ -707,6 +691,7 @@
   }
 
   // ===== Salva / Carica =====
+  function getAllComps(){ return [...document.querySelectorAll('.comp')]; }
   function collectProject(){
     const comps = getAllComps().map(el=>{
       const w = el.offsetWidth, h = el.offsetHeight;
@@ -727,7 +712,6 @@
       compositions: comps
     };
   }
-
   function saveProject(){
     const data = collectProject();
     const json = JSON.stringify(data, null, 2);
@@ -738,74 +722,47 @@
     a.href = url; a.download = `${safeName}.json`; a.click();
     URL.revokeObjectURL(url);
   }
-
-  function clearCanvas(){
-    getAllComps().forEach(el=> el.remove());
-    state.selected = null; updateToolbarState(); refreshRecap();
-  }
-
+  function clearCanvas(){ getAllComps().forEach(el=> el.remove()); state.selected = null; updateToolbarState(); refreshRecap(); }
   function createCompFromData(c){
-    const w = c.cols * c.tileW;
-    const h = c.rows * c.tileH;
-
+    const w = c.cols * c.tileW, h = c.rows * c.tileH;
     const el = document.createElement('div');
-    el.className = 'comp';
-    el.dataset.id = c.id || uid();
-    el.style.width = px(w);
-    el.style.height = px(h);
+    el.className = 'comp'; el.dataset.id = c.id || uid();
+    el.style.width = px(w); el.style.height = px(h);
     el.style.backgroundSize = `${c.tileW}px ${c.tileH}px, ${c.tileW}px ${c.tileH}px`;
-    el.dataset.tileW = String(c.tileW);
-    el.dataset.tileH = String(c.tileH);
-
+    el.dataset.tileW = String(c.tileW); el.dataset.tileH = String(c.tileH);
     const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
     const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = c.name || 'Composizione'; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
-
     let nx = Math.max(0, Math.min(state.canvas.w - w, Math.round(c.x||0)));
     let ny = Math.max(0, Math.min(state.canvas.h - h, Math.round(c.y||0)));
-    el.style.left = px(nx);
-    el.style.top  = px(ny);
-
-    screen.appendChild(el);
-    makeDraggable(el);
-    updateOffsetLabels(el);
+    el.style.left = px(nx); el.style.top  = px(ny);
+    screen.appendChild(el); makeDraggable(el); updateOffsetLabels(el);
   }
-
   function loadProjectFromObject(obj){
     if (!obj || typeof obj !== 'object') return;
     const w = Math.max(1, parseInt(obj.canvas?.w,10) || 1920);
     const h = Math.max(1, parseInt(obj.canvas?.h,10) || 1080);
-    applyCanvasSize(w,h);
-    canvasWInput.value = String(w);
-    canvasHInput.value = String(h);
+    applyCanvasSize(w,h); canvasWInput.value = String(w); canvasHInput.value = String(h);
     projectNameInput.value = obj.name || '';
     clearCanvas();
     (obj.compositions||[]).forEach(createCompFromData);
     refreshRecap();
   }
-
   saveBtn.addEventListener('click', saveProject);
   loadFile.addEventListener('change', (e)=>{
-    const file = e.target.files?.[0];
-    if(!file) return;
+    const file = e.target.files?.[0]; if(!file) return;
     const reader = new FileReader();
     reader.onload = (ev)=>{
-      try {
-        const obj = JSON.parse(String(ev.target?.result||'{}'));
-        loadProjectFromObject(obj);
-      } catch(err){
-        alert('File non valido.');
-      }
+      try { const obj = JSON.parse(String(ev.target?.result||'{}')); loadProjectFromObject(obj); }
+      catch(err){ alert('File non valido.'); }
     };
-    reader.readAsText(file);
-    e.target.value = '';
+    reader.readAsText(file); e.target.value = '';
   });
 
   // ===== Boot =====
   applyCanvasSize(1920, 1080);
-  // Un esempio iniziale, rimuovi se non lo vuoi:
-  addComposition();
+  addComposition(); // demo iniziale
   refreshRecap();
   updateToolbarState();
 })();
