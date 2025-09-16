@@ -60,9 +60,10 @@
     .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
     .comp .size { color:#d6e8ff; text-shadow:0 1px 2px #000; margin-top:4px; }
 
-    /* Etichetta offset (in alto a sinistra, sempre interna) */
-    .comp .offset {
-      position:absolute; top:3px; left:3px;
+    /* Etichette offset (in alto-sinistra e in basso-destra) */
+    .comp .offset,
+    .comp .offsetBR {
+      position:absolute;
       font-weight:600;
       color:#e9f6ff; text-shadow:0 1px 2px #000;
       background:rgba(10,15,20,0.55);
@@ -72,6 +73,8 @@
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       line-height:1; pointer-events:none;
     }
+    .comp .offset  { top:3px;    left:3px; }
+    .comp .offsetBR{ bottom:3px; right:3px; }
 
     label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
     input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:8px}
@@ -139,7 +142,7 @@
           </div>
         </div>
 
-        <!-- NUOVI CAMPI: Offset iniziale -->
+        <!-- Offset iniziale -->
         <div class="grid2" style="margin-top:8px">
           <div>
             <label for="startX">Offset X (px)</label>
@@ -189,7 +192,7 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset X,Y dinamico • Offset iniziale a mano.
+      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset TL e BR dinamici • Offset iniziale a mano.
     </div>
   </footer>
 
@@ -288,7 +291,8 @@
   function fitLabels(el) {
     const nameEl = el.querySelector('.name');
     const sizeEl = el.querySelector('.size');
-    const offEl  = el.querySelector('.offset');
+    const offTL  = el.querySelector('.offset');
+    const offBR  = el.querySelector('.offsetBR');
 
     if (nameEl && sizeEl) {
       const padH = 16; // padding orizzontale totale
@@ -309,32 +313,42 @@
       sizeEl.style.fontSize = sizePx + "px";
     }
 
-    // OFFSET (auto-fit separato)
-    if (offEl) {
-      const offText = offEl.textContent || "";
-      const cornerPadW = 8;
-      const cornerPadH = 6;
-      const maxWidth  = Math.max(20, Math.floor(el.clientWidth * 0.55) - cornerPadW);
-      const maxHeight = Math.max(10, Math.floor(el.clientHeight * 0.18) - cornerPadH);
+    // OFFSET TL
+    if (offTL) {
+      const text = offTL.textContent || "";
+      const maxWidth  = Math.max(20, Math.floor(el.clientWidth * 0.55) - 8);
+      const maxHeight = Math.max(10, Math.floor(el.clientHeight * 0.18) - 6);
+      const f = maxFontThatFits(text, "600", maxWidth, maxHeight, 9, 22);
+      if (f < MIN_OFFSET_FONT) offTL.style.display = 'none';
+      else { offTL.style.display='inline-block'; offTL.style.fontSize = f + 'px'; }
+    }
 
-      const offPx = maxFontThatFits(offText, "600", maxWidth, maxHeight, 9, 22);
-
-      if (offPx < MIN_OFFSET_FONT) {
-        offEl.style.display = 'none';
-      } else {
-        offEl.style.display = 'inline-block';
-        offEl.style.fontSize = offPx + 'px';
-      }
+    // OFFSET BR
+    if (offBR) {
+      const text = offBR.textContent || "";
+      const maxWidth  = Math.max(20, Math.floor(el.clientWidth * 0.55) - 8);
+      const maxHeight = Math.max(10, Math.floor(el.clientHeight * 0.18) - 6);
+      const f = maxFontThatFits(text, "600", maxWidth, maxHeight, 9, 22);
+      if (f < MIN_OFFSET_FONT) offBR.style.display = 'none';
+      else { offBR.style.display='inline-block'; offBR.style.fontSize = f + 'px'; }
     }
   }
 
-  // ---- Offset label ----
-  function updateOffsetLabel(el){
-    const off = el.querySelector('.offset');
-    if (!off) return;
+  // ---- Offset labels ----
+  function updateOffsetLabels(el){
+    const offTL = el.querySelector('.offset');
+    const offBR = el.querySelector('.offsetBR');
     const x = Math.round(parseFloat(el.style.left) || 0);
     const y = Math.round(parseFloat(el.style.top)  || 0);
-    off.textContent = `(${x}, ${y})`;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+
+    if (offTL) offTL.textContent = `(${x}, ${y})`;
+    if (offBR) {
+      const x2 = x + w - 1;
+      const y2 = y + h - 1;
+      offBR.textContent = `(${x2}, ${y2})`;
+    }
     fitLabels(el);
   }
 
@@ -422,7 +436,7 @@
       nx = Math.round(nx); ny = Math.round(ny);
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
-      updateOffsetLabel(el); // aggiorna testo e auto-fit
+      updateOffsetLabels(el); // aggiorna TL e BR + auto-fit
     };
 
     const end = ()=>{
@@ -457,10 +471,14 @@
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // Label offset
-    const off = document.createElement('div');
-    off.className = 'offset';
-    el.appendChild(off);
+    // Label offset TL
+    const offTL = document.createElement('div');
+    offTL.className = 'offset';
+    el.appendChild(offTL);
+    // Label offset BR
+    const offBR = document.createElement('div');
+    offBR.className = 'offsetBR';
+    el.appendChild(offBR);
 
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
@@ -476,7 +494,7 @@
 
     screen.appendChild(el);
     makeDraggable(el);
-    updateOffsetLabel(el); // include fitLabels
+    updateOffsetLabels(el); // include fitLabels
     selectComp(el);
     state.counter++;
   }
@@ -496,10 +514,10 @@
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // Label offset
-    const off = document.createElement('div');
-    off.className = 'offset';
-    el.appendChild(off);
+    // Offset TL
+    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
+    // Offset BR
+    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
 
     const nameSrc = src.querySelector('.name')?.textContent || `Composizione`;
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = nameSrc + ' Copy'; el.appendChild(nameEl);
@@ -514,7 +532,7 @@
 
     screen.appendChild(el);
     makeDraggable(el);
-    updateOffsetLabel(el);
+    updateOffsetLabels(el);
     selectComp(el);
     state.counter++;
   });
