@@ -18,28 +18,25 @@
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
     #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
     #screen {
-      position:absolute; left:10px; top:10px; /* margine estetico nel viewport */
+      position:absolute; left:10px; top:10px;
       background:#0c0d11;
-      border:1px solid #1e2229;  /* bordo reale su tutti i lati */
-      box-sizing:content-box;     /* il bordo resta esterno alle dimensioni interne */
+      border:1px solid #1e2229;
+      box-sizing:content-box;
       touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden;
     }
-    /* Griglia 100px */
     #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
         linear-gradient(to right, #181c24 1px, transparent 1px),
         linear-gradient(to bottom, #181c24 1px, transparent 1px);
       background-size:100px 100px, 100px 100px; }
 
-    /* Composizioni (rettangoli) */
+    /* Composizioni */
     .comp {
       position:absolute; z-index:2; box-sizing:border-box;
       background:rgba(69,184,255,0.10);
       cursor:grab; touch-action:none; user-select:none;
       display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
-      /* BORDO INTERNO 3px, sempre e ovunque */
       box-shadow: inset 0 0 0 3px var(--acc);
-      /* Griglia interna (tile) – aggiornata via JS */
       background-image:
         linear-gradient(to right, rgba(69,184,255,0.30) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(69,184,255,0.30) 1px, transparent 1px);
@@ -47,22 +44,14 @@
       padding: 4px 8px;
     }
     .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff; }
-
-    /* Testo principale auto-fit (font-size gestito da JS) */
-    .comp .name,
-    .comp .size {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      line-height: 1.1;
-      pointer-events: none;
+    .comp .name, .comp .size {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; pointer-events: none;
     }
     .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
     .comp .size { color:#d6e8ff; text-shadow:0 1px 2px #000; margin-top:4px; }
 
-    /* Etichette offset (TL e BR) */
-    .comp .offset,
-    .comp .offsetBR {
+    /* Offset TL e BR */
+    .comp .offset, .comp .offsetBR {
       position:absolute; font-weight:600;
       color:#e9f6ff; text-shadow:0 1px 2px #000;
       background:rgba(10,15,20,0.55);
@@ -77,18 +66,18 @@
 
     label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
     input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:8px}
-    input[type=number]{width:100%}
+    input[type=number], input[type=text]{width:100%}
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-    /* Toolbar sopra il canvas */
+    /* Toolbar */
     #toolbar { display:flex; gap:8px; margin-bottom:6px; align-items:center; }
     #toolbar button { background:none; border:1px solid #444; cursor:pointer; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
     #toolbar button:hover { background:rgba(255,255,255,0.08); }
     #toolbar .spacer { margin-left:auto; color:#a0a6ad; font-size:12px; }
 
-    /* Recap list */
+    /* Recap */
     #recap { max-height:320px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
     .recap-item { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:6px 8px; border-radius:8px; }
     .recap-item:hover { background:#101318; }
@@ -110,11 +99,11 @@
         <div class="grid2">
           <div>
             <label for="canvasW">Larghezza (px)</label>
-            <input id="canvasW" type="number" min="1" step="1" value="1920">
+            <input id="canvasW" type="text" value="1920" placeholder="es. 1920, 1280*3, +10">
           </div>
           <div>
             <label for="canvasH">Altezza (px)</label>
-            <input id="canvasH" type="number" min="1" step="1" value="1080">
+            <input id="canvasH" type="text" value="1080" placeholder="es. 1080, 360*3, *2">
           </div>
         </div>
         <div style="display:flex; gap:8px; margin-top:8px">
@@ -134,19 +123,19 @@
         <div class="grid2" style="margin-top:8px">
           <div>
             <label for="cols">Colonne (mattonelle)</label>
-            <input id="cols" type="number" min="1" step="1" value="8">
+            <input id="cols" type="text" value="8" placeholder="es. 8, *2, +3">
           </div>
           <div>
             <label for="rows">Righe (mattonelle)</label>
-            <input id="rows" type="number" min="1" step="1" value="4">
+            <input id="rows" type="text" value="4" placeholder="es. 4, 2*2, +1">
           </div>
           <div>
             <label for="tileW">Tile W (px)</label>
-            <input id="tileW" type="number" min="1" step="1" value="128">
+            <input id="tileW" type="text" value="128" placeholder="es. 128, 64*2, +16">
           </div>
           <div>
             <label for="tileH">Tile H (px)</label>
-            <input id="tileH" type="number" min="1" step="1" value="128">
+            <input id="tileH" type="text" value="128" placeholder="es. 128, *2, -16">
           </div>
         </div>
 
@@ -154,11 +143,11 @@
         <div class="grid2" style="margin-top:8px">
           <div>
             <label for="startX">Offset X (px)</label>
-            <input id="startX" type="number" min="0" step="1" value="0">
+            <input id="startX" type="text" value="0" placeholder="es. 0, +128, *2">
           </div>
           <div>
             <label for="startY">Offset Y (px)</label>
-            <input id="startY" type="number" min="0" step="1" value="0">
+            <input id="startY" type="text" value="0" placeholder="es. 0, +128, *2">
           </div>
         </div>
 
@@ -170,7 +159,7 @@
         <div style="font-weight:700; margin-bottom:8px">Composizioni (recap & modifica rapida)</div>
         <div id="recap"></div>
         <div style="margin-top:8px; font-size:12px; color:#a0a6ad">
-          Clicca su qualsiasi valore per modificarlo. Invio per confermare.
+          Clicca su un valore per modificarlo. Puoi usare formule tipo <code>*2</code>, <code>+64</code>, <code>128*3</code>. Invio per confermare.
         </div>
       </div>
     </section>
@@ -207,23 +196,54 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset TL e BR dinamici • Offset iniziale a mano • Recap modificabile.
+      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset TL/BR dinamici • Offset iniziale a mano • Recap modificabile • Calcoli inline nei campi numerici.
     </div>
   </footer>
 
 <script>
 (() => {
-  // Stato
-  const state = {
-    canvas: { w:1920, h:1080 },
-    scale: 1,
-    counter: 0,
-    selected: null,
-  };
-  const SNAP_THRESHOLD = 12; // px mondo
-  const MIN_OFFSET_FONT = 10; // soglia sotto cui l'offset si nasconde
+  // ===== Helpers calcolo espressioni intere =====
+  // - Supporta numeri, + - * /, parentesi, spazi
+  // - Se l'espressione inizia con un operatore (+-*/), è relativa a base
+  // - Il risultato viene arrotondato a intero
+  function evalIntExpression(expr, base) {
+    if (typeof expr !== 'string') expr = String(expr ?? '');
+    const s = expr.trim();
+    if (!s) return NaN;
 
-  // DOM refs
+    // accetta solo cifre, operatori e parentesi
+    const cleaned = s.replace(/[^0-9+\-*/().\s]/g, '');
+
+    let finalExpr = cleaned;
+    if (/^[+\-*/]/.test(cleaned)) {
+      // relativo al valore corrente
+      finalExpr = `(${base}|0)${cleaned}`;
+    }
+
+    // evita divisione per zero / errori
+    let out = NaN;
+    try {
+      // eslint-disable-next-line no-new-func
+      const f = new Function(`return (${finalExpr});`);
+      const val = f();
+      if (Number.isFinite(val)) out = Math.round(val);
+    } catch (_) {
+      out = NaN;
+    }
+    return out;
+  }
+
+  function parseField(inputEl, current, minVal=0) {
+    const v = evalIntExpression(inputEl.value, current);
+    return Number.isFinite(v) ? Math.max(minVal, v) : current;
+  }
+
+  // ===== Stato & costanti UI =====
+  const state = { canvas: { w:1920, h:1080 }, scale: 1, counter: 0, selected: null };
+  const SNAP_THRESHOLD = 12;
+  const MIN_OFFSET_FONT = 10;
+
+  // ===== DOM =====
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
@@ -253,9 +273,7 @@
 
   const recap = document.getElementById('recap');
 
-  // Utilities
-  const toInt = (v, fb) => { const n = parseInt(String(v).replace(/[^0-9]/g,''),10); return Number.isFinite(n) ? n : fb; };
-  const clampPos = (n)=> Math.max(0, n);
+  // ===== Utils =====
   const px = (n)=> Math.round(n) + 'px';
   const uid = ()=> Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -265,6 +283,16 @@
     canvasInfo.textContent = `${w}×${h}px`;
     canvasInfoTop.textContent = `${w}×${h}px`;
     fitToViewport();
+    // Clamp rettangoli se canvas si è ridotto
+    document.querySelectorAll('.comp').forEach(el=>{
+      let x = Math.round(parseFloat(el.style.left)||0);
+      let y = Math.round(parseFloat(el.style.top)||0);
+      const w = el.offsetWidth, h = el.offsetHeight;
+      x = Math.max(0, Math.min(state.canvas.w - w, x));
+      y = Math.max(0, Math.min(state.canvas.h - h, y));
+      el.style.left = px(x); el.style.top = px(y);
+      updateOffsetLabels(el);
+    });
   }
 
   function fitToViewport(){
@@ -286,27 +314,17 @@
   function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateToolbarState(); highlightRecapSelection(); } }
   function updateToolbarState(){ const has = !!state.selected; dupBtn.disabled = !has; delBtn.disabled = !has; renameBtn.disabled = !has; }
 
-  // ---- Auto-fit testo (nome, dimensioni, offset) ----
+  // ===== Auto-fit testo =====
   const _measureCanvas = document.createElement('canvas');
   const _mctx = _measureCanvas.getContext('2d');
   const FONT_FAMILY = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
-
-  function textWidthPx(text, weight, sizePx) {
-    _mctx.font = `${weight} ${sizePx}px ${FONT_FAMILY}`;
-    return Math.ceil(_mctx.measureText(text).width);
-  }
+  function textWidthPx(text, weight, sizePx) { _mctx.font = `${weight} ${sizePx}px ${FONT_FAMILY}`; return Math.ceil(_mctx.measureText(text).width); }
   function maxFontThatFits(text, weight, maxWidth, maxHeight, minPx=8, maxPx=160) {
-    let lo = minPx, hi = maxPx, best = minPx;
-    while (lo <= hi) {
-      const mid = Math.floor((lo + hi) / 2);
-      const w = textWidthPx(text, weight, mid);
-      const h = Math.ceil(mid * 1.1);
-      if (w <= maxWidth && h <= maxHeight) { best = mid; lo = mid + 1; }
-      else { hi = mid - 1; }
-    }
+    let lo=minPx, hi=maxPx, best=minPx;
+    while (lo<=hi) { const mid=(lo+hi>>1); const w=textWidthPx(text,weight,mid), h=Math.ceil(mid*1.1);
+      if (w<=maxWidth && h<=maxHeight) { best=mid; lo=mid+1; } else { hi=mid-1; } }
     return best;
   }
-
   function fitLabels(el) {
     const nameEl = el.querySelector('.name');
     const sizeEl = el.querySelector('.size');
@@ -314,33 +332,23 @@
     const offBR  = el.querySelector('.offsetBR');
 
     if (nameEl && sizeEl) {
-      const padH = 16, padV = 8;
-      const innerW = el.clientWidth - padH;
-      const innerH = el.clientHeight - padV;
-
-      const nameMaxH = Math.max(10, Math.floor(innerH * 0.70));
-      const sizeMaxH = Math.max(10, Math.floor(innerH * 0.25));
-
-      const namePx = maxFontThatFits(nameEl.textContent||"", "800", innerW, nameMaxH, 8, 160);
-      const sizePx = maxFontThatFits(sizeEl.textContent||"", "400", innerW, sizeMaxH, 8, 64);
-
-      nameEl.style.fontSize = namePx + "px";
-      sizeEl.style.fontSize = sizePx + "px";
+      const padH=16, padV=8, innerW=el.clientWidth - padH, innerH=el.clientHeight - padV;
+      const namePx = maxFontThatFits(nameEl.textContent||"", "800", innerW, Math.max(10, Math.floor(innerH*0.70)), 8, 160);
+      const sizePx = maxFontThatFits(sizeEl.textContent||"", "400", innerW, Math.max(10, Math.floor(innerH*0.25)), 8, 64);
+      nameEl.style.fontSize = namePx + "px"; sizeEl.style.fontSize = sizePx + "px";
     }
-
     const fitCorner = (elCorner)=>{
       if (!elCorner) return;
-      const text = elCorner.textContent || "";
       const maxWidth  = Math.max(20, Math.floor(el.clientWidth * 0.55) - 8);
       const maxHeight = Math.max(10, Math.floor(el.clientHeight * 0.18) - 6);
-      const f = maxFontThatFits(text, "600", maxWidth, maxHeight, 9, 22);
+      const f = maxFontThatFits(elCorner.textContent||"", "600", maxWidth, maxHeight, 9, 22);
       elCorner.style.display = (f < MIN_OFFSET_FONT) ? 'none' : 'inline-block';
       if (f >= MIN_OFFSET_FONT) elCorner.style.fontSize = f + 'px';
     };
     fitCorner(offTL); fitCorner(offBR);
   }
 
-  // ---- Offset labels ----
+  // ===== Offset labels =====
   function updateOffsetLabels(el){
     const offTL = el.querySelector('.offset');
     const offBR = el.querySelector('.offsetBR');
@@ -351,10 +359,10 @@
     if (offTL) offTL.textContent = `(${x}, ${y})`;
     if (offBR) offBR.textContent = `(${x + w - 1}, ${y + h - 1})`;
     fitLabels(el);
-    refreshRecap(); // tiene la lista in sync in tempo reale
+    refreshRecap();
   }
 
-  // Drag + Snap
+  // ===== Drag + Snap =====
   function makeDraggable(el){
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
@@ -452,13 +460,19 @@
     el.addEventListener('click', (e)=>{ e.stopPropagation(); selectComp(el); });
   }
 
-  // Aggiunta composizione
+  // ===== Creazione composizione =====
   function addComposition(){
     const name = (compNameInput.value || `Composizione ${state.counter+1}`).trim();
-    const cols = Math.max(1, toInt(colsInput.value, 1));
-    const rows = Math.max(1, toInt(rowsInput.value, 1));
-    const tileW = Math.max(1, toInt(tileWInput.value, 1));
-    const tileH = Math.max(1, toInt(tileHInput.value, 1));
+
+    // Valori di base prima del parsing (per permettere operazioni relative)
+    const baseCols = 8, baseRows = 4, baseTW = 128, baseTH = 128, baseSX=0, baseSY=0;
+
+    const cols  = Math.max(1, parseField(colsInput,  baseCols, 1));
+    const rows  = Math.max(1, parseField(rowsInput,  baseRows, 1));
+    const tileW = Math.max(1, parseField(tileWInput, baseTW,   1));
+    const tileH = Math.max(1, parseField(tileHInput, baseTH,   1));
+    let   nx    = Math.max(0, parseField(startXInput, baseSX,  0));
+    let   ny    = Math.max(0, parseField(startYInput, baseSY,  0));
 
     const w = cols * tileW;
     const h = rows * tileH;
@@ -472,16 +486,12 @@
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // Label offset TL e BR
     const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
     const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
-
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
-    // offset iniziale
-    let nx = clampPos(toInt(startXInput.value, 0));
-    let ny = clampPos(toInt(startYInput.value, 0));
+    // clamp entro canvas
     nx = Math.min(state.canvas.w - w, nx);
     ny = Math.min(state.canvas.h - h, ny);
     el.style.left = px(nx);
@@ -494,7 +504,7 @@
     state.counter++;
   }
 
-  // Duplica / Elimina (toolbar)
+  // ===== Toolbar =====
   dupBtn.addEventListener('click', ()=>{
     const src = state.selected; if(!src) return;
     const w = src.offsetWidth, h = src.offsetHeight;
@@ -512,17 +522,16 @@
 
     const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
     const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
-
-    const nameSrc = src.querySelector('.name')?.textContent || `Composizione`;
-    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = nameSrc + ' Copy'; el.appendChild(nameEl);
+    const nameEl = document.createElement('div'); nameEl.className = 'name';
+    nameEl.textContent = (src.querySelector('.name')?.textContent || `Composizione`) + ' Copy';
+    el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
     let nx = (parseFloat(src.style.left)||0) + 24;
     let ny = (parseFloat(src.style.top)||0) + 24;
     nx = Math.min(state.canvas.w - w, Math.max(0, nx));
     ny = Math.min(state.canvas.h - h, Math.max(0, ny));
-    el.style.left = px(nx);
-    el.style.top  = px(ny);
+    el.style.left = px(nx); el.style.top = px(ny);
 
     screen.appendChild(el);
     makeDraggable(el);
@@ -530,7 +539,7 @@
     selectComp(el);
   });
 
-  delBtn.addEventListener('click', ()=>{ if(!state.selected) return; const next = state.selected.nextElementSibling || state.selected.previousElementSibling; state.selected.remove(); state.selected = null; updateToolbarState(); refreshRecap(); if(next){ selectComp(next); } });
+  delBtn.addEventListener('click', ()=>{ if(!state.selected) return; const next = state.selected.nextElementSibling || state.selected.previousElementSibling; state.selected.remove(); state.selected=null; updateToolbarState(); refreshRecap(); if(next){ selectComp(next); } });
 
   // Rinomina (modal)
   function openRename(){ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); }
@@ -542,11 +551,14 @@
   renameModal.addEventListener('click', (e)=>{ if(e.target===renameModal) closeRename(); });
   renameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') saveRename(); if(e.key==='Escape') closeRename(); });
 
-  // CANVAS UI
+  // ===== Canvas controls (con espressioni) =====
   applyCanvasBtn.addEventListener('click', ()=>{
-    const w = Math.max(1, toInt(canvasWInput.value, state.canvas.w));
-    const h = Math.max(1, toInt(canvasHInput.value, state.canvas.h));
-    applyCanvasSize(w,h);
+    const newW = Math.max(1, evalIntExpression(canvasWInput.value, state.canvas.w) || state.canvas.w);
+    const newH = Math.max(1, evalIntExpression(canvasHInput.value, state.canvas.h) || state.canvas.h);
+    applyCanvasSize(newW, newH);
+    // riscrivo i campi con i valori effettivi
+    canvasWInput.value = String(newW);
+    canvasHInput.value = String(newH);
   });
   fitBtn.addEventListener('click', fitToViewport);
   addCompBtn.addEventListener('click', addComposition);
@@ -555,9 +567,8 @@
   new ResizeObserver(()=>fitToViewport()).observe(viewport);
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
 
-  // ===== Recap list =====
+  // ===== Recap =====
   function getAllComps(){ return [...document.querySelectorAll('.comp')]; }
-
   function compData(el){
     const w = el.offsetWidth, h = el.offsetHeight;
     const tileW = parseInt(el.dataset.tileW||'1',10)||1;
@@ -587,78 +598,43 @@
         span.contentEditable = 'true';
         span.spellcheck = false;
         span.dataset.field = field;
+        span.dataset.base = String(value); // per operazioni relative
         span.textContent = String(value);
         span.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); span.blur(); } });
         span.addEventListener('focus', ()=> selectById(it.id));
-        span.addEventListener('blur', ()=> applyEdit(it.id, field, span.textContent));
-        const wrap = document.createElement('span');
-        wrap.className = 'pill';
-        wrap.style.background = 'transparent';
-        wrap.style.border = 'none';
-        wrap.style.padding = '0';
+        span.addEventListener('blur', ()=> applyEdit(it.id, field, span.textContent, Number(span.dataset.base)));
         const lab = document.createElement('span');
-        lab.className = 'pill';
-        lab.textContent = label;
-        lab.style.marginRight = '4px';
+        lab.className = 'pill'; lab.textContent = label; lab.style.marginRight='4px';
         const group = document.createElement('span');
-        group.appendChild(lab);
-        group.appendChild(span);
-        group.style.display = 'inline-flex';
-        group.style.alignItems = 'center';
-        group.style.gap = '6px';
+        group.style.display='inline-flex'; group.style.alignItems='center'; group.style.gap='6px';
+        group.append(lab, span);
         return group;
       };
 
       const sep = ()=>{ const s=document.createElement('span'); s.className='sep'; s.textContent='•'; return s; }
 
-      // Nome
       const nameEl = makeEditable('Nome', it.name, 'name', Math.max(6, it.name.length));
-      // Tiles (cols x rows)
       const colsEl = makeEditable('Cols', it.cols, 'cols', 4);
       const rowsEl = makeEditable('Rows', it.rows, 'rows', 4);
-      // Tile size
-      const twEl = makeEditable('TileW', it.tileW, 'tileW', 5);
-      const thEl = makeEditable('TileH', it.tileH, 'tileH', 5);
-      // Offset
-      const xEl = makeEditable('X', it.x, 'x', 4);
-      const yEl = makeEditable('Y', it.y, 'y', 4);
-      // Risoluzione totale (solo display)
-      const tot = document.createElement('span');
-      tot.className = 'pill';
-      tot.textContent = `Tot: ${it.w}×${it.h}px`;
+      const twEl   = makeEditable('TileW', it.tileW, 'tileW', 5);
+      const thEl   = makeEditable('TileH', it.tileH, 'tileH', 5);
+      const xEl    = makeEditable('X', it.x, 'x', 4);
+      const yEl    = makeEditable('Y', it.y, 'y', 4);
 
-      // Compose row
-      row.appendChild(nameEl);
-      row.appendChild(sep());
-      const groupTiles = document.createElement('span');
-      groupTiles.className='pill';
-      groupTiles.style.gap='6px'; groupTiles.style.display='inline-flex'; groupTiles.style.alignItems='center';
-      groupTiles.style.background='transparent'; groupTiles.style.border='none'; groupTiles.style.padding='0';
+      const tot = document.createElement('span'); tot.className='pill'; tot.textContent = `Tot: ${it.w}×${it.h}px`;
+
+      row.append(nameEl, sep());
+      const groupTiles = document.createElement('span'); groupTiles.className='pill'; groupTiles.style.gap='6px'; groupTiles.style.display='inline-flex'; groupTiles.style.alignItems='center'; groupTiles.style.background='transparent'; groupTiles.style.border='none'; groupTiles.style.padding='0';
       groupTiles.append('Tiles:', colsEl.querySelector('.editable'), document.createTextNode('×'), rowsEl.querySelector('.editable'));
-      row.appendChild(groupTiles);
-
-      row.appendChild(sep());
-      const groupPix = document.createElement('span');
-      groupPix.className='pill';
-      groupPix.style.gap='6px'; groupPix.style.display='inline-flex'; groupPix.style.alignItems='center';
-      groupPix.style.background='transparent'; groupPix.style.border='none'; groupPix.style.padding='0';
+      row.append(groupTiles, sep());
+      const groupPix = document.createElement('span'); groupPix.className='pill'; groupPix.style.gap='6px'; groupPix.style.display='inline-flex'; groupPix.style.alignItems='center'; groupPix.style.background='transparent'; groupPix.style.border='none'; groupPix.style.padding='0';
       groupPix.append('Tile(px):', twEl.querySelector('.editable'), document.createTextNode('×'), thEl.querySelector('.editable'));
-      row.appendChild(groupPix);
-
-      row.appendChild(sep());
-      row.appendChild(tot);
-
-      row.appendChild(sep());
-      const groupOff = document.createElement('span');
-      groupOff.className='pill';
-      groupOff.style.gap='6px'; groupOff.style.display='inline-flex'; groupOff.style.alignItems='center';
-      groupOff.style.background='transparent'; groupOff.style.border='none'; groupOff.style.padding='0';
+      row.append(groupPix, sep(), tot, sep());
+      const groupOff = document.createElement('span'); groupOff.className='pill'; groupOff.style.gap='6px'; groupOff.style.display='inline-flex'; groupOff.style.alignItems='center'; groupOff.style.background='transparent'; groupOff.style.border='none'; groupOff.style.padding='0';
       groupOff.append('Offset:', xEl.querySelector('.editable'), document.createTextNode(','), yEl.querySelector('.editable'));
-      row.appendChild(groupOff);
+      row.append(groupOff);
 
-      // Selezione al click
       row.addEventListener('click', (e)=> { if(!(e.target instanceof HTMLElement && e.target.isContentEditable)){ selectById(it.id); } });
-
       recap.appendChild(row);
     }
   }
@@ -676,13 +652,12 @@
     });
   }
 
-  // Applicazione modifiche dal recap
-  function applyEdit(id, field, rawValue){
+  // Applica modifiche dal recap (con espressioni)
+  function applyEdit(id, field, rawValue, baseValue){
     const el = getAllComps().find(n=> n.dataset.id===id);
     if (!el) return;
-    const val = toInt(rawValue, NaN);
 
-    // Dati attuali
+    // dati attuali
     let w = el.offsetWidth, h = el.offsetHeight;
     let tileW = parseInt(el.dataset.tileW||'1',10)||1;
     let tileH = parseInt(el.dataset.tileH||'1',10)||1;
@@ -691,24 +666,24 @@
     let x = Math.round(parseFloat(el.style.left)||0);
     let y = Math.round(parseFloat(el.style.top) ||0);
 
-    const nameNode = el.querySelector('.name');
-
     if (field === 'name'){
       const text = (rawValue||'').trim();
-      if (text) { nameNode.textContent = text; fitLabels(el); }
+      if (text) { el.querySelector('.name').textContent = text; fitLabels(el); }
       refreshRecap();
       return;
     }
 
-    if (!Number.isFinite(val)) { refreshRecap(); return; }
+    const v = evalIntExpression(rawValue, baseValue);
+
+    if (!Number.isFinite(v)) { refreshRecap(); return; }
 
     switch(field){
-      case 'cols': cols = Math.max(1, val); w = cols * tileW; break;
-      case 'rows': rows = Math.max(1, val); h = rows * tileH; break;
-      case 'tileW': tileW = Math.max(1, val); el.dataset.tileW = String(tileW); w = cols * tileW; break;
-      case 'tileH': tileH = Math.max(1, val); el.dataset.tileH = String(tileH); h = rows * tileH; break;
-      case 'x': x = clampPos(val); break;
-      case 'y': y = clampPos(val); break;
+      case 'cols': cols = Math.max(1, v); w = cols * tileW; break;
+      case 'rows': rows = Math.max(1, v); h = rows * tileH; break;
+      case 'tileW': tileW = Math.max(1, v); el.dataset.tileW = String(tileW); w = cols * tileW; break;
+      case 'tileH': tileH = Math.max(1, v); el.dataset.tileH = String(tileH); h = rows * tileH; break;
+      case 'x': x = Math.max(0, v); break;
+      case 'y': y = Math.max(0, v); break;
     }
 
     // Clamp a canvas
@@ -717,32 +692,24 @@
     x = Math.min(state.canvas.w - w, Math.max(0, x));
     y = Math.min(state.canvas.h - h, Math.max(0, y));
 
-    // Applica dimensioni e griglia interna
     el.style.width = px(w);
     el.style.height = px(h);
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // Aggiorna testi interni
-    const sizeEl = el.querySelector('.size');
-    sizeEl.textContent = `${w}×${h}px`;
-
-    // Posizione (se modificata)
+    el.querySelector('.size').textContent = `${w}×${h}px`;
     el.style.left = px(x);
     el.style.top  = px(y);
-
-    // Re-fit testi e offset
     updateOffsetLabels(el);
 
-    // Mantiene selezione e recap sync
     selectComp(el);
     refreshRecap();
   }
 
-  // Boot
-  applyCanvasSize(parseInt(canvasWInput.value,10)||1920, parseInt(canvasHInput.value,10)||1080);
-  addComposition(); // facoltativo: crea un esempio iniziale
+  // ===== Boot =====
+  applyCanvasSize(1920, 1080);
+  addComposition(); // esempio iniziale
   refreshRecap();
   updateToolbarState();
 })();
