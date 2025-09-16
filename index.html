@@ -3,21 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Snap</title>
+  <title>LEDWall Mapper – Snap + Labels</title>
   <style>
-    :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --acc:#45b8ff; }
+    :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; }
     * { box-sizing: border-box; }
     body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
     header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
     main { display:flex; gap:12px; padding:12px; }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; }
-    #left { width:320px; display:flex; flex-direction:column; gap:12px; }
+    #left { width:360px; display:flex; flex-direction:column; gap:12px; }
     #work { flex:1; display:flex; flex-direction:column; gap:10px; }
 
     /* Viewport / Canvas */
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
-    #screenWrap { $1 will-change: transform; }
-    #screen { $1 box-sizing:border-box; border:1px solid #1e2229; }
+    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; will-change: transform; }
+    #screen { position:absolute; left:10px; top:10px; width:1920px; height:1080px; background:#0c0d11; border:1px solid #1e2229; touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden; box-sizing:border-box; }
     /* Grid di sfondo 100px del CANVAS */
     #screen::before {
       content:""; position:absolute; inset:0; pointer-events:none;
@@ -27,41 +27,42 @@
       background-size:100px 100px, 100px 100px;
     }
 
-    /* Composizione (rettangoli trascinabili) */
+    /* Composizioni (rettangoli) */
     .comp {
-      position:absolute; z-index:2;
-      box-sizing:border-box;
-      /* bordo luminoso disegnato all'interno */
+      position:absolute; z-index:2; box-sizing:border-box;
+      /* bordo luminoso interno */
       box-shadow: inset 0 0 0 2px var(--acc);
-      background:rgba(69,184,255,0.15);
+      background:rgba(69,184,255,0.12);
       cursor:grab; touch-action:none; user-select:none;
       background-image:
         linear-gradient(to right, rgba(69,184,255,0.35) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(69,184,255,0.35) 1px, transparent 1px);
       background-size:128px 128px, 128px 128px;
+      display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
     }
     .comp.dragging { cursor:grabbing; }
-    .comp.selected {
-      box-shadow: inset 0 0 0 3px #7fd0ff, inset 0 0 0 2px var(--acc);
-    }
-    .comp * { pointer-events:none; }
+    .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff, inset 0 0 0 2px var(--acc); }
+    .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; font-size: clamp(14px, 3.2vw, 40px); line-height:1.1; pointer-events:none; }
+    .comp .size { margin-top:4px; font-size: clamp(10px, 2vw, 18px); color:#d6e8ff; text-shadow:0 1px 2px #000; pointer-events:none; }
 
     label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
     input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:8px}
+    input[type=number]{width:100%}
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   </style>
 </head>
 <body>
   <header>
-    <div style="font-weight:800">LEDWall Mapper – Snap</div>
+    <div style="font-weight:800">LEDWall Mapper – Snap + Labels</div>
   </header>
 
   <main>
     <section id="left">
       <div class="panel">
         <div style="font-weight:700; margin-bottom:8px">Canvas</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
+        <div class="grid2">
           <div>
             <label for="canvasW">Larghezza (px)</label>
             <input id="canvasW" type="number" min="1" step="1" value="1920">
@@ -79,8 +80,12 @@
       </div>
 
       <div class="panel">
-        <div style="font-weight:700; margin-bottom:8px">Composizione (mattonelle + pixel)</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px">
+        <div style="font-weight:700; margin-bottom:8px">Nuova Composizione</div>
+        <div>
+          <label for="compName">Nome</label>
+          <input id="compName" type="text" placeholder="Ledwall Main">
+        </div>
+        <div class="grid2" style="margin-top:8px">
           <div>
             <label for="cols">Colonne (mattonelle)</label>
             <input id="cols" type="number" min="1" step="1" value="8">
@@ -98,7 +103,7 @@
             <input id="tileH" type="number" min="1" step="1" value="128">
           </div>
         </div>
-        <button id="addComp" style="margin-top:8px; width:100%">Aggiungi composizione</button>
+        <button id="addComp" style="margin-top:10px; width:100%">Aggiungi composizione</button>
         <div style="display:flex; gap:8px; margin-top:8px">
           <button id="dupComp" class="secondary" style="flex:1">Duplica selezionata</button>
           <button id="delComp" class="secondary" style="flex:1">Elimina selezionata</button>
@@ -109,7 +114,7 @@
 
     <section id="work">
       <div class="panel" style="display:flex; flex-direction:column; gap:8px; min-height:72vh">
-        <div>Area di lavoro</div>
+        <div>Area di lavoro – Canvas: <span id="canvasInfoTop">–</span></div>
         <div id="viewport">
           <div id="screenWrap">
             <div id="screen"></div>
@@ -120,7 +125,7 @@
   </main>
 
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch), snap morbido a griglia e ad altri rettangoli.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch), snap morbido a griglia e ad altri rettangoli. Bordi interni pixel-perfect.</div>
   </footer>
 
 <script>
@@ -132,19 +137,20 @@
     counter: 0,
     selected: null
   };
-  // Snap morbido (in pixel del mondo)
-  const SNAP_THRESHOLD = 12;
+  const SNAP_THRESHOLD = 12; // px mondo
 
-  // DOM
+  // DOM refs
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
   const canvasInfo = document.getElementById('canvasInfo');
+  const canvasInfoTop = document.getElementById('canvasInfoTop');
   const applyCanvasBtn = document.getElementById('applyCanvas');
   const fitBtn = document.getElementById('fit');
   const canvasWInput = document.getElementById('canvasW');
   const canvasHInput = document.getElementById('canvasH');
 
+  const compNameInput = document.getElementById('compName');
   const colsInput = document.getElementById('cols');
   const rowsInput = document.getElementById('rows');
   const tileWInput = document.getElementById('tileW');
@@ -153,17 +159,15 @@
   const dupCompBtn = document.getElementById('dupComp');
   const delCompBtn = document.getElementById('delComp');
 
-  // Helpers
-  const toInt = (v, fb) => {
-    const n = parseInt(String(v).replace(/[^0-9]/g,''),10);
-    return Number.isFinite(n) && n>0 ? n : fb;
-  };
+  // Utils
+  const toInt = (v, fb) => { const n = parseInt(String(v).replace(/[^0-9]/g,''),10); return Number.isFinite(n) && n>0 ? n : fb; };
+  const px = (n)=> Math.round(n) + 'px';
 
   function applyCanvasSize(w,h){
     state.canvas.w = w; state.canvas.h = h;
-    screen.style.width = w + 'px';
-    screen.style.height = h + 'px';
+    screen.style.width = px(w); screen.style.height = px(h);
     canvasInfo.textContent = `${w}×${h}px`;
+    canvasInfoTop.textContent = `${w}×${h}px`;
     fitToViewport();
   }
 
@@ -183,11 +187,7 @@
     updateSelectionButtons();
   }
   function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateSelectionButtons(); } }
-  function updateSelectionButtons(){
-    const has = !!state.selected;
-    dupCompBtn.disabled = !has;
-    delCompBtn.disabled = !has;
-  }
+  function updateSelectionButtons(){ const has = !!state.selected; dupCompBtn.disabled = !has; delCompBtn.disabled = !has; }
 
   // Drag + Snap
   function makeDraggable(el){
@@ -199,7 +199,6 @@
       selectComp(el);
       const p = getPos(e);
       const pg = screen.getBoundingClientRect();
-      // coordinate mondo
       const pointerWorldX = (p.x - pg.left) / state.scale;
       const pointerWorldY = (p.y - pg.top)  / state.scale;
       const curLeft = parseFloat(el.style.left) || 0;
@@ -230,15 +229,15 @@
       const T = ny, B = ny + h, CY = ny + h/2;
 
       const snapEdgeX = (nx, targetX, edge)=>{
-        if (edge==='L') return targetX;               // left → target
-        if (edge==='R') return targetX - w;           // right → target
-        if (edge==='C') return Math.round(targetX - w/2); // centerX → target
+        if (edge==='L') return targetX;
+        if (edge==='R') return targetX - w;
+        if (edge==='C') return Math.round(targetX - w/2);
         return nx;
       };
       const snapEdgeY = (ny, targetY, edge)=>{
-        if (edge==='T') return targetY;               // top → target
-        if (edge==='B') return targetY - h;           // bottom → target
-        if (edge==='C') return Math.round(targetY - h/2); // centerY → target
+        if (edge==='T') return targetY;
+        if (edge==='B') return targetY - h;
+        if (edge==='C') return Math.round(targetY - h/2);
         return ny;
       };
 
@@ -246,26 +245,15 @@
         const left = parseFloat(n.style.left)||0;
         const top  = parseFloat(n.style.top)||0;
         const nw = n.offsetWidth, nh = n.offsetHeight;
-        const targetsX = [left, left+nw, left+nw/2]; // L, R, Cx
-        const targetsY = [top, top+nh, top+nh/2];    // T, B, Cy
-
-        // orizzontale: prova ad allineare L,R,CX a ciascun targetX
+        const targetsX = [left, left+nw, left+nw/2];
+        const targetsY = [top, top+nh, top+nh/2];
         for (const tx of targetsX){
           const cands = [ ['L', Math.abs(L-tx)], ['R', Math.abs(R-tx)], ['C', Math.abs(CX-tx)] ];
-          for (const [edge,dist] of cands){
-            if (dist <= SNAP_THRESHOLD && dist < bestDX){
-              bestDX = dist; bestNX = snapEdgeX(nx, tx, edge);
-            }
-          }
+          for (const [edge,dist] of cands){ if (dist <= SNAP_THRESHOLD && dist < bestDX){ bestDX = dist; bestNX = snapEdgeX(nx, tx, edge); } }
         }
-        // verticale: T,B,CY verso ciascun targetY
         for (const ty of targetsY){
           const cands = [ ['T', Math.abs(T-ty)], ['B', Math.abs(B-ty)], ['C', Math.abs(CY-ty)] ];
-          for (const [edge,dist] of cands){
-            if (dist <= SNAP_THRESHOLD && dist < bestDY){
-              bestDY = dist; bestNY = snapEdgeY(ny, ty, edge);
-            }
-          }
+          for (const [edge,dist] of cands){ if (dist <= SNAP_THRESHOLD && dist < bestDY){ bestDY = dist; bestNY = snapEdgeY(ny, ty, edge); } }
         }
       }
       nx = bestNX; ny = bestNY;
@@ -273,16 +261,17 @@
       // --- SNAP MORBIDO ALLA GRIGLIA DEL CANVAS ---
       const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
       const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-      const originX = 0, originY = 0; // top-left canvas (corretto)
+      const originX = 0, originY = 0;
       const nearestGX = originX + Math.round((nx - originX)/tileW)*tileW;
       if (Math.abs(nx - nearestGX) <= SNAP_THRESHOLD) nx = nearestGX;
       const nearestGY = originY + Math.round((ny - originY)/tileH)*tileH;
       if (Math.abs(ny - nearestGY) <= SNAP_THRESHOLD) ny = nearestGY;
 
-      // clamp finale entro canvas (corretto)
+      // clamp entro canvas
       nx = Math.max(0, Math.min(state.canvas.w - w, nx));
       ny = Math.max(0, Math.min(state.canvas.h - h, ny));
 
+      // arrotondamento a pixel interi
       nx = Math.round(nx); ny = Math.round(ny);
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
@@ -301,8 +290,8 @@
     el.addEventListener('click', (e)=>{ e.stopPropagation(); selectComp(el); });
   }
 
-  // Aggiunge una composizione: dimensioni = (cols*tileW) × (rows*tileH)
   function addComposition(){
+    const name = (compNameInput.value || `Composizione ${state.counter+1}`).trim();
     const cols = toInt(colsInput.value, 1);
     const rows = toInt(rowsInput.value, 1);
     const tileW = toInt(tileWInput.value, 1);
@@ -313,19 +302,24 @@
 
     const el = document.createElement('div');
     el.className = 'comp';
-    el.style.width = w + 'px';
-    el.style.height = h + 'px';
+    el.style.width = px(w);
+    el.style.height = px(h);
+    el.style.left = '0px';
+    el.style.top  = '0px';
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
-    // Passo griglia per lo snap
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // posizione iniziale "a cascata" clampata allo screen (corretto)
+    // labels
+    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
+    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
+
+    // posizione iniziale a cascata clampata
     const base = 24 * (state.counter % 10);
     const startX = Math.min(state.canvas.w - w, Math.max(0, base));
     const startY = Math.min(state.canvas.h - h, Math.max(0, base));
-    el.style.left = startX + 'px';
-    el.style.top  = startY + 'px';
+    el.style.left = px(startX);
+    el.style.top  = px(startY);
 
     screen.appendChild(el);
     makeDraggable(el);
@@ -334,21 +328,6 @@
   }
 
   // Duplica / Elimina
-  function updateSelectionButtons(){
-    const has = !!state.selected;
-    dupCompBtn.disabled = !has;
-    delCompBtn.disabled = !has;
-  }
-
-  // Event wiring
-  applyCanvasBtn.addEventListener('click', ()=>{
-    const w = toInt(canvasWInput.value, state.canvas.w);
-    const h = toInt(canvasHInput.value, state.canvas.h);
-    applyCanvasSize(w,h);
-  });
-  fitBtn.addEventListener('click', fitToViewport);
-  addCompBtn.addEventListener('click', addComposition);
-
   dupCompBtn.addEventListener('click', ()=>{
     const src = state.selected; if(!src) return;
     const w = src.offsetWidth, h = src.offsetHeight;
@@ -357,18 +336,23 @@
 
     const el = document.createElement('div');
     el.className = 'comp';
-    el.style.width = w + 'px';
-    el.style.height = h + 'px';
+    el.style.width = px(w);
+    el.style.height = px(h);
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
+
+    // copia label (aggiunge "Copy")
+    const nameSrc = src.querySelector('.name')?.textContent || `Composizione`;
+    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = nameSrc + ' Copy'; el.appendChild(nameEl);
+    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
     let nx = (parseFloat(src.style.left)||0) + 24;
     let ny = (parseFloat(src.style.top)||0) + 24;
     nx = Math.min(state.canvas.w - w, Math.max(0, nx));
     ny = Math.min(state.canvas.h - h, Math.max(0, ny));
-    el.style.left = nx + 'px';
-    el.style.top  = ny + 'px';
+    el.style.left = px(nx);
+    el.style.top  = px(ny);
 
     screen.appendChild(el);
     makeDraggable(el);
@@ -376,14 +360,12 @@
     state.counter++;
   });
 
-  delCompBtn.addEventListener('click', ()=>{
-    if(!state.selected) return;
-    state.selected.remove();
-    state.selected = null;
-    updateSelectionButtons();
-  });
+  delCompBtn.addEventListener('click', ()=>{ if(!state.selected) return; state.selected.remove(); state.selected=null; updateSelectionButtons(); });
 
-  // Deseleziona cliccando il canvas vuoto
+  // Canvas
+  applyCanvasBtn.addEventListener('click', ()=>{ const w=toInt(canvasWInput.value,state.canvas.w); const h=toInt(canvasHInput.value,state.canvas.h); applyCanvasSize(w,h); });
+  fitBtn.addEventListener('click', fitToViewport);
+  addCompBtn.addEventListener('click', addComposition);
   screen.addEventListener('click', ()=>{ clearSelection(); });
 
   new ResizeObserver(()=>fitToViewport()).observe(viewport);
