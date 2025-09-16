@@ -85,6 +85,10 @@
     .pill { background:#0f1115; border:1px solid #2b2f36; border-radius:999px; padding:3px 8px; font-size:12px; color:#cfd3d7; }
     .editable { border-bottom:1px dashed #3a8fff; cursor:text; }
     .sep { color:#5f6772; }
+
+    /* Modal semplice */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);z-index:50}
+    .modal .dialog{background:#151519;border:1px solid #2b2f36;border-radius:12px;padding:16px;min-width:280px;max-width:90vw}
   </style>
 </head>
 <body>
@@ -94,6 +98,20 @@
 
   <main>
     <section id="left">
+      <!-- PROGETTO -->
+      <div class="panel">
+        <div style="font-weight:700; margin-bottom:8px">Progetto</div>
+        <div>
+          <label for="projectName">Nome progetto</label>
+          <input id="projectName" type="text" placeholder="Es. Evento_MainStage">
+        </div>
+        <div style="display:flex; gap:8px; margin-top:8px">
+          <button id="saveBtn" style="flex:1">💾 Salva</button>
+          <label for="loadFile" class="secondary" style="flex:1; display:flex; align-items:center; justify-content:center; cursor:pointer">📂 Carica</label>
+          <input id="loadFile" type="file" accept=".json,application/json" style="display:none">
+        </div>
+      </div>
+
       <div class="panel">
         <div style="font-weight:700; margin-bottom:8px">Canvas</div>
         <div class="grid2">
@@ -196,50 +214,33 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset TL/BR dinamici • Offset iniziale a mano • Recap modificabile • Calcoli inline nei campi numerici.
+      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset TL/BR dinamici • Offset iniziale a mano • Recap modificabile • Calcoli inline • Salva/Carica .json.
     </div>
   </footer>
 
 <script>
 (() => {
   // ===== Helpers calcolo espressioni intere =====
-  // - Supporta numeri, + - * /, parentesi, spazi
-  // - Se l'espressione inizia con un operatore (+-*/), è relativa a base
-  // - Il risultato viene arrotondato a intero
   function evalIntExpression(expr, base) {
     if (typeof expr !== 'string') expr = String(expr ?? '');
     const s = expr.trim();
     if (!s) return NaN;
-
-    // accetta solo cifre, operatori e parentesi
     const cleaned = s.replace(/[^0-9+\-*/().\s]/g, '');
-
     let finalExpr = cleaned;
-    if (/^[+\-*/]/.test(cleaned)) {
-      // relativo al valore corrente
-      finalExpr = `(${base}|0)${cleaned}`;
-    }
-
-    // evita divisione per zero / errori
+    if (/^[+\-*/]/.test(cleaned)) finalExpr = `(${base}|0)${cleaned}`;
     let out = NaN;
     try {
-      // eslint-disable-next-line no-new-func
       const f = new Function(`return (${finalExpr});`);
       const val = f();
       if (Number.isFinite(val)) out = Math.round(val);
-    } catch (_) {
-      out = NaN;
-    }
+    } catch (_) { out = NaN; }
     return out;
   }
-
-  function parseField(inputEl, current, minVal=0) {
-    const v = evalIntExpression(inputEl.value, current);
-    return Number.isFinite(v) ? Math.max(minVal, v) : current;
-  }
+  const px = (n)=> Math.round(n) + 'px';
+  const uid = ()=> Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   // ===== Stato & costanti UI =====
-  const state = { canvas: { w:1920, h:1080 }, scale: 1, counter: 0, selected: null };
+  const state = { canvas: { w:1920, h:1080 }, scale: 1, selected: null };
   const SNAP_THRESHOLD = 12;
   const MIN_OFFSET_FONT = 10;
 
@@ -253,6 +254,10 @@
   const fitBtn = document.getElementById('fit');
   const canvasWInput = document.getElementById('canvasW');
   const canvasHInput = document.getElementById('canvasH');
+
+  const projectNameInput = document.getElementById('projectName');
+  const saveBtn = document.getElementById('saveBtn');
+  const loadFile = document.getElementById('loadFile');
 
   const compNameInput = document.getElementById('compName');
   const colsInput = document.getElementById('cols');
@@ -273,10 +278,7 @@
 
   const recap = document.getElementById('recap');
 
-  // ===== Utils =====
-  const px = (n)=> Math.round(n) + 'px';
-  const uid = ()=> Math.random().toString(36).slice(2) + Date.now().toString(36);
-
+  // ===== Canvas sizing =====
   function applyCanvasSize(w,h){
     state.canvas.w = w; state.canvas.h = h;
     screen.style.width = px(w); screen.style.height = px(h);
@@ -287,14 +289,13 @@
     document.querySelectorAll('.comp').forEach(el=>{
       let x = Math.round(parseFloat(el.style.left)||0);
       let y = Math.round(parseFloat(el.style.top)||0);
-      const w = el.offsetWidth, h = el.offsetHeight;
-      x = Math.max(0, Math.min(state.canvas.w - w, x));
-      y = Math.max(0, Math.min(state.canvas.h - h, y));
+      const cw = el.offsetWidth, ch = el.offsetHeight;
+      x = Math.max(0, Math.min(state.canvas.w - cw, x));
+      y = Math.max(0, Math.min(state.canvas.h - ch, y));
       el.style.left = px(x); el.style.top = px(y);
       updateOffsetLabels(el);
     });
   }
-
   function fitToViewport(){
     const vw = viewport.clientWidth - 16;
     const vh = viewport.clientHeight - 16;
@@ -462,17 +463,14 @@
 
   // ===== Creazione composizione =====
   function addComposition(){
-    const name = (compNameInput.value || `Composizione ${state.counter+1}`).trim();
-
-    // Valori di base prima del parsing (per permettere operazioni relative)
-    const baseCols = 8, baseRows = 4, baseTW = 128, baseTH = 128, baseSX=0, baseSY=0;
-
-    const cols  = Math.max(1, parseField(colsInput,  baseCols, 1));
-    const rows  = Math.max(1, parseField(rowsInput,  baseRows, 1));
-    const tileW = Math.max(1, parseField(tileWInput, baseTW,   1));
-    const tileH = Math.max(1, parseField(tileHInput, baseTH,   1));
-    let   nx    = Math.max(0, parseField(startXInput, baseSX,  0));
-    let   ny    = Math.max(0, parseField(startYInput, baseSY,  0));
+    const name = (compNameInput.value || `Composizione`).trim();
+    const baseCols=8, baseRows=4, baseTW=128, baseTH=128, baseSX=0, baseSY=0;
+    const cols  = Math.max(1, evalIntExpression(colsInput.value,  baseCols) ?? baseCols);
+    const rows  = Math.max(1, evalIntExpression(rowsInput.value,  baseRows) ?? baseRows);
+    const tileW = Math.max(1, evalIntExpression(tileWInput.value, baseTW)   ?? baseTW);
+    const tileH = Math.max(1, evalIntExpression(tileHInput.value, baseTH)   ?? baseTH);
+    let   nx    = Math.max(0, evalIntExpression(startXInput.value, baseSX)  ?? baseSX);
+    let   ny    = Math.max(0, evalIntExpression(startYInput.value, baseSY)  ?? baseSY);
 
     const w = cols * tileW;
     const h = rows * tileH;
@@ -491,7 +489,6 @@
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
-    // clamp entro canvas
     nx = Math.min(state.canvas.w - w, nx);
     ny = Math.min(state.canvas.h - h, ny);
     el.style.left = px(nx);
@@ -501,10 +498,19 @@
     makeDraggable(el);
     updateOffsetLabels(el);
     selectComp(el);
-    state.counter++;
   }
 
   // ===== Toolbar =====
+  const renameOpen = ()=>{ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); };
+  const renameClose= ()=>{ renameModal.style.display='none'; };
+  const renameSaveFn = ()=>{ if(!state.selected) return; const v=(renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent=v; fitLabels(state.selected); refreshRecap(); } renameClose(); };
+
+  renameBtn.addEventListener('click', renameOpen);
+  renameCancel.addEventListener('click', renameClose);
+  renameSave.addEventListener('click', renameSaveFn);
+  renameModal.addEventListener('click', (e)=>{ if(e.target===renameModal) renameClose(); });
+  renameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') renameSaveFn(); if(e.key==='Escape') renameClose(); });
+
   dupBtn.addEventListener('click', ()=>{
     const src = state.selected; if(!src) return;
     const w = src.offsetWidth, h = src.offsetHeight;
@@ -539,24 +545,19 @@
     selectComp(el);
   });
 
-  delBtn.addEventListener('click', ()=>{ if(!state.selected) return; const next = state.selected.nextElementSibling || state.selected.previousElementSibling; state.selected.remove(); state.selected=null; updateToolbarState(); refreshRecap(); if(next){ selectComp(next); } });
+  delBtn.addEventListener('click', ()=>{
+    if(!state.selected) return;
+    const next = state.selected.nextElementSibling || state.selected.previousElementSibling;
+    state.selected.remove();
+    state.selected=null; updateToolbarState(); refreshRecap();
+    if(next){ selectComp(next); }
+  });
 
-  // Rinomina (modal)
-  function openRename(){ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); }
-  function closeRename(){ renameModal.style.display='none'; }
-  function saveRename(){ if(!state.selected) return; const v = (renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent = v; fitLabels(state.selected); refreshRecap(); } closeRename(); }
-  renameBtn.addEventListener('click', openRename);
-  renameCancel.addEventListener('click', closeRename);
-  renameSave.addEventListener('click', saveRename);
-  renameModal.addEventListener('click', (e)=>{ if(e.target===renameModal) closeRename(); });
-  renameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') saveRename(); if(e.key==='Escape') closeRename(); });
-
-  // ===== Canvas controls (con espressioni) =====
+  // ===== Canvas controls =====
   applyCanvasBtn.addEventListener('click', ()=>{
     const newW = Math.max(1, evalIntExpression(canvasWInput.value, state.canvas.w) || state.canvas.w);
     const newH = Math.max(1, evalIntExpression(canvasHInput.value, state.canvas.h) || state.canvas.h);
     applyCanvasSize(newW, newH);
-    // riscrivo i campi con i valori effettivi
     canvasWInput.value = String(newW);
     canvasHInput.value = String(newH);
   });
@@ -598,7 +599,7 @@
         span.contentEditable = 'true';
         span.spellcheck = false;
         span.dataset.field = field;
-        span.dataset.base = String(value); // per operazioni relative
+        span.dataset.base = String(value);
         span.textContent = String(value);
         span.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); span.blur(); } });
         span.addEventListener('focus', ()=> selectById(it.id));
@@ -657,7 +658,6 @@
     const el = getAllComps().find(n=> n.dataset.id===id);
     if (!el) return;
 
-    // dati attuali
     let w = el.offsetWidth, h = el.offsetHeight;
     let tileW = parseInt(el.dataset.tileW||'1',10)||1;
     let tileH = parseInt(el.dataset.tileH||'1',10)||1;
@@ -674,7 +674,6 @@
     }
 
     const v = evalIntExpression(rawValue, baseValue);
-
     if (!Number.isFinite(v)) { refreshRecap(); return; }
 
     switch(field){
@@ -707,9 +706,106 @@
     refreshRecap();
   }
 
+  // ===== Salva / Carica =====
+  function collectProject(){
+    const comps = getAllComps().map(el=>{
+      const w = el.offsetWidth, h = el.offsetHeight;
+      const tileW = parseInt(el.dataset.tileW||'1',10)||1;
+      const tileH = parseInt(el.dataset.tileH||'1',10)||1;
+      const cols = Math.round(w / tileW);
+      const rows = Math.round(h / tileH);
+      const x = Math.round(parseFloat(el.style.left)||0);
+      const y = Math.round(parseFloat(el.style.top) ||0);
+      const name = el.querySelector('.name')?.textContent || '';
+      return { id: el.dataset.id || uid(), name, cols, rows, tileW, tileH, x, y };
+    });
+
+    return {
+      version: 1,
+      name: (projectNameInput.value||'Progetto').trim(),
+      canvas: { w: state.canvas.w, h: state.canvas.h },
+      compositions: comps
+    };
+  }
+
+  function saveProject(){
+    const data = collectProject();
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeName = (data.name||'progetto').replace(/[^a-z0-9_\-]+/gi,'_').toLowerCase();
+    a.href = url; a.download = `${safeName}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function clearCanvas(){
+    getAllComps().forEach(el=> el.remove());
+    state.selected = null; updateToolbarState(); refreshRecap();
+  }
+
+  function createCompFromData(c){
+    const w = c.cols * c.tileW;
+    const h = c.rows * c.tileH;
+
+    const el = document.createElement('div');
+    el.className = 'comp';
+    el.dataset.id = c.id || uid();
+    el.style.width = px(w);
+    el.style.height = px(h);
+    el.style.backgroundSize = `${c.tileW}px ${c.tileH}px, ${c.tileW}px ${c.tileH}px`;
+    el.dataset.tileW = String(c.tileW);
+    el.dataset.tileH = String(c.tileH);
+
+    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
+    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
+    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = c.name || 'Composizione'; el.appendChild(nameEl);
+    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
+
+    let nx = Math.max(0, Math.min(state.canvas.w - w, Math.round(c.x||0)));
+    let ny = Math.max(0, Math.min(state.canvas.h - h, Math.round(c.y||0)));
+    el.style.left = px(nx);
+    el.style.top  = px(ny);
+
+    screen.appendChild(el);
+    makeDraggable(el);
+    updateOffsetLabels(el);
+  }
+
+  function loadProjectFromObject(obj){
+    if (!obj || typeof obj !== 'object') return;
+    const w = Math.max(1, parseInt(obj.canvas?.w,10) || 1920);
+    const h = Math.max(1, parseInt(obj.canvas?.h,10) || 1080);
+    applyCanvasSize(w,h);
+    canvasWInput.value = String(w);
+    canvasHInput.value = String(h);
+    projectNameInput.value = obj.name || '';
+    clearCanvas();
+    (obj.compositions||[]).forEach(createCompFromData);
+    refreshRecap();
+  }
+
+  saveBtn.addEventListener('click', saveProject);
+  loadFile.addEventListener('change', (e)=>{
+    const file = e.target.files?.[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      try {
+        const obj = JSON.parse(String(ev.target?.result||'{}'));
+        loadProjectFromObject(obj);
+      } catch(err){
+        alert('File non valido.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
   // ===== Boot =====
   applyCanvasSize(1920, 1080);
-  addComposition(); // esempio iniziale
+  // Un esempio iniziale, rimuovi se non lo vuoi:
+  addComposition();
   refreshRecap();
   updateToolbarState();
 })();
