@@ -18,13 +18,12 @@
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
     #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
     #screen {
-      position:absolute; left:10px; top:10px; /* margine estetico nel viewport */
+      position:absolute; left:10px; top:10px;
       background:#0c0d11;
-      border:1px solid #1e2229;  /* bordo reale su tutti i lati */
-      box-sizing:content-box;     /* il bordo resta esterno alle dimensioni interne */
+      border:1px solid #1e2229;
+      box-sizing:content-box;
       touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden;
     }
-    /* Griglia 100px, nessun offset: niente doppie linee */
     #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
         linear-gradient(to right, #181c24 1px, transparent 1px),
@@ -37,18 +36,16 @@
       background:rgba(69,184,255,0.10);
       cursor:grab; touch-action:none; user-select:none;
       display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
-      /* BORDO INTERNO 3px, sempre e ovunque */
-      box-shadow: inset 0 0 0 3px var(--acc);
-      /* Griglia interna (tile) – aggiornata via JS */
+      box-shadow: inset 0 0 0 3px var(--acc); /* bordo interno 3px */
       background-image:
         linear-gradient(to right, rgba(69,184,255,0.30) 1px, transparent 1px),
         linear-gradient(to bottom, rgba(69,184,255,0.30) 1px, transparent 1px);
       background-size:128px 128px, 128px 128px;
-      padding: 4px 8px; /* leggero respiro per il testo */
+      padding: 4px 8px;
     }
     .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff; }
 
-    /* Testo auto-fit (font-size gestito da JS) */
+    /* Testo principale auto-fit (font-size gestito da JS) */
     .comp .name,
     .comp .size {
       white-space: nowrap;
@@ -59,6 +56,17 @@
     }
     .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; }
     .comp .size { color:#d6e8ff; text-shadow:0 1px 2px #000; margin-top:4px; }
+
+    /* Etichetta offset (in alto a sinistra, sempre interna) */
+    .comp .offset {
+      position:absolute; top:3px; left:3px;
+      font-size:12px; line-height:1; font-weight:600;
+      color:#e9f6ff; text-shadow:0 1px 2px #000;
+      background:rgba(10,15,20,0.55);
+      border:1px solid rgba(127,208,255,0.35);
+      border-radius:6px; padding:3px 6px;
+      pointer-events:none; /* non interferisce col drag */
+    }
 
     label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
     input,button{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:8px}
@@ -172,7 +180,7 @@
   </div>
 
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset X,Y in alto a sinistra.</div>
   </footer>
 
 <script>
@@ -252,31 +260,27 @@
     _mctx.font = `${weight} ${sizePx}px ${FONT_FAMILY}`;
     return Math.ceil(_mctx.measureText(text).width);
   }
-  // Trova la dimensione massima (in px) che entra in width/height
   function maxFontThatFits(text, weight, maxWidth, maxHeight, minPx=8, maxPx=160) {
     let lo = minPx, hi = maxPx, best = minPx;
     while (lo <= hi) {
       const mid = Math.floor((lo + hi) / 2);
       const w = textWidthPx(text, weight, mid);
-      const h = Math.ceil(mid * 1.1); // line-height ~1.1
+      const h = Math.ceil(mid * 1.1);
       if (w <= maxWidth && h <= maxHeight) { best = mid; lo = mid + 1; }
       else { hi = mid - 1; }
     }
     return best;
   }
-  // Applica l'auto-fit a una singola .comp
   function fitLabels(el) {
     const nameEl = el.querySelector('.name');
     const sizeEl = el.querySelector('.size');
     if (!nameEl || !sizeEl) return;
 
-    const padH = 16; // padding totale orizzontale (4+8+4)
-    const padV = 8;  // padding totale verticale
-
+    const padH = 16; // padding orizzontale totale
+    const padV = 8;  // padding verticale totale
     const innerW = el.clientWidth - padH;
     const innerH = el.clientHeight - padV;
 
-    // Budget verticale: 70% al nome, 25% alle dimensioni
     const nameMaxH = Math.max(10, Math.floor(innerH * 0.70));
     const sizeMaxH = Math.max(10, Math.floor(innerH * 0.25));
 
@@ -288,6 +292,15 @@
 
     nameEl.style.fontSize = namePx + "px";
     sizeEl.style.fontSize = sizePx + "px";
+  }
+
+  // ---- Offset label ----
+  function updateOffsetLabel(el){
+    const off = el.querySelector('.offset');
+    if (!off) return;
+    const x = Math.round(parseFloat(el.style.left) || 0);
+    const y = Math.round(parseFloat(el.style.top)  || 0);
+    off.textContent = `(${x}, ${y})`;
   }
 
   // Drag + Snap
@@ -319,7 +332,6 @@
       const pointerWorldY = (p.y - pg.top)  / state.scale;
       const w = el.offsetWidth, h = el.offsetHeight;
 
-      // posizione grezza (mondo)
       let nx = pointerWorldX - drag.offsetX;
       let ny = pointerWorldY - drag.offsetY;
 
@@ -359,10 +371,10 @@
       }
       nx = bestNX; ny = bestNY;
 
-      // --- SNAP alla griglia del rettangolo (tile) ---
+      // --- SNAP alla griglia (tile) ---
       const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
       const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-      const originX = 0, originY = 0; // origine canvas
+      const originX = 0, originY = 0;
       const nearestGX = originX + Math.round((nx - originX)/tileW)*tileW;
       if (Math.abs(nx - nearestGX) <= SNAP_THRESHOLD) nx = nearestGX;
       const nearestGY = originY + Math.round((ny - originY)/tileH)*tileH;
@@ -372,10 +384,10 @@
       nx = Math.max(0, Math.min(state.canvas.w - w, nx));
       ny = Math.max(0, Math.min(state.canvas.h - h, ny));
 
-      // arrotondamento a pixel interi
       nx = Math.round(nx); ny = Math.round(ny);
       el.style.left = nx + 'px';
       el.style.top  = ny + 'px';
+      updateOffsetLabel(el);
     };
 
     const end = ()=>{
@@ -410,6 +422,11 @@
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
+    // Label offset
+    const off = document.createElement('div');
+    off.className = 'offset';
+    el.appendChild(off);
+
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
@@ -422,7 +439,8 @@
 
     screen.appendChild(el);
     makeDraggable(el);
-    fitLabels(el);           // auto-fit testo
+    fitLabels(el);
+    updateOffsetLabel(el);
     selectComp(el);
     state.counter++;
   }
@@ -442,6 +460,11 @@
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
+    // Label offset
+    const off = document.createElement('div');
+    off.className = 'offset';
+    el.appendChild(off);
+
     const nameSrc = src.querySelector('.name')?.textContent || `Composizione`;
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = nameSrc + ' Copy'; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
@@ -455,7 +478,8 @@
 
     screen.appendChild(el);
     makeDraggable(el);
-    fitLabels(el);           // auto-fit testo
+    fitLabels(el);
+    updateOffsetLabel(el);
     selectComp(el);
     state.counter++;
   });
