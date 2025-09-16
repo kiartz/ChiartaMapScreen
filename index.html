@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Snap & Pixel‑Perfect</title>
+  <title>LEDWall Mapper – Snap & Pixel-Perfect</title>
   <style>
     :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; }
     * { box-sizing: border-box; }
@@ -55,11 +55,28 @@
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+    /* Toolbar sopra il canvas */
+    #toolbar { display:flex; gap:8px; margin-bottom:6px; align-items:center; }
+    #toolbar button { background:none; border:1px solid #444; cursor:pointer; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
+    #toolbar button:hover { background:rgba(255,255,255,0.08); }
+    #toolbar .spacer { margin-left:auto; color:#a0a6ad; font-size:12px; }
+
+    /* Modal rinomina */
+    .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:50; }
+    .modal.show { display:flex; }
+    .dialog { background:#20242a; border:1px solid #2f343c; border-radius:10px; padding:14px; width:min(90vw,420px); box-shadow:0 10px 30px rgba(0,0,0,.5); }
+    .dialog h3 { margin:0 0 10px; font-size:16px; }
+    .dialog label { display:block; font-size:12px; color:#cfd3d7; margin:0 0 6px; }
+    .dialog input[type=text] { width:100%; padding:10px; border:1px solid #3a3f47; border-radius:8px; background:#0f1115; color:#e8eaed; font-size:16px; }
+    .dialog .row { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; }
+    .dialog button { background:#2b90ff; color:#001018; border:none; border-radius:8px; padding:8px 12px; font-weight:700; cursor:pointer; }
+    .dialog button.secondary { background:#0f1115; color:#e8eaed; border:1px solid #3a3f47; }
   </style>
 </head>
 <body>
   <header>
-    <div style="font-weight:800">LEDWall Mapper – Snap & Pixel‑Perfect</div>
+    <div style="font-weight:800">LEDWall Mapper – Snap & Pixel-Perfect</div>
   </header>
 
   <main>
@@ -108,17 +125,19 @@
           </div>
         </div>
         <button id="addComp" style="margin-top:10px; width:100%">Aggiungi composizione</button>
-        <div style="display:flex; gap:8px; margin-top:8px">
-          <button id="dupComp" class="secondary" style="flex:1">Duplica selezionata</button>
-          <button id="delComp" class="secondary" style="flex:1">Elimina selezionata</button>
-        </div>
+
         <div style="margin-top:6px;font-size:12px;color:#a0a6ad">TUTTO in pixel interi (nessuna virgola). Snap morbido alla griglia e ai bordi/centri delle altre composizioni.</div>
       </div>
     </section>
 
     <section id="work">
       <div class="panel" style="display:flex; flex-direction:column; gap:8px; min-height:72vh">
-        <div>Area di lavoro – Canvas: <span id="canvasInfoTop">–</span></div>
+        <div id="toolbar">
+          <button id="renameBtn" title="Rinomina">✎</button>
+          <button id="duplicateBtn" title="Duplica">⧉</button>
+          <button id="deleteBtn" title="Elimina">🗑️</button>
+          <div class="spacer">Canvas: <span id="canvasInfoTop">–</span></div>
+        </div>
         <div id="viewport">
           <div id="screenWrap">
             <div id="screen"></div>
@@ -128,8 +147,21 @@
     </section>
   </main>
 
+  <!-- Modal rinomina -->
+  <div id="renameModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+    <div class="dialog">
+      <h3 id="renameTitle">Rinomina composizione</h3>
+      <label for="renameInput">Nome</label>
+      <input type="text" id="renameInput" autocomplete="off" />
+      <div class="row">
+        <button id="renameCancel" class="secondary">Annulla</button>
+        <button id="renameSave">Salva</button>
+      </div>
+    </div>
+  </div>
+
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel‑perfect.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect.</div>
   </footer>
 
 <script>
@@ -160,8 +192,15 @@
   const tileWInput = document.getElementById('tileW');
   const tileHInput = document.getElementById('tileH');
   const addCompBtn = document.getElementById('addComp');
-  const dupCompBtn = document.getElementById('dupComp');
-  const delCompBtn = document.getElementById('delComp');
+
+  // Toolbar + modal rinomina
+  const renameBtn = document.getElementById('renameBtn');
+  const dupBtn = document.getElementById('duplicateBtn');
+  const delBtn = document.getElementById('deleteBtn');
+  const renameModal = document.getElementById('renameModal');
+  const renameInput = document.getElementById('renameInput');
+  const renameSave = document.getElementById('renameSave');
+  const renameCancel = document.getElementById('renameCancel');
 
   // Utilities
   const toInt = (v, fb) => { const n = parseInt(String(v).replace(/[^0-9]/g,''),10); return Number.isFinite(n) && n>0 ? n : fb; };
@@ -188,10 +227,10 @@
     if (state.selected && state.selected !== el){ state.selected.classList.remove('selected'); }
     state.selected = el;
     if (state.selected) state.selected.classList.add('selected');
-    updateSelectionButtons();
+    updateToolbarState();
   }
-  function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateSelectionButtons(); } }
-  function updateSelectionButtons(){ const has = !!state.selected; dupCompBtn.disabled = !has; delCompBtn.disabled = !has; }
+  function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateToolbarState(); } }
+  function updateToolbarState(){ const has = !!state.selected; dupBtn.disabled = !has; delBtn.disabled = !has; renameBtn.disabled = !has; }
 
   // Drag + Snap
   function makeDraggable(el){
@@ -329,8 +368,8 @@
     state.counter++;
   }
 
-  // Duplica / Elimina
-  dupCompBtn.addEventListener('click', ()=>{
+  // Duplica / Elimina (toolbar)
+  dupBtn.addEventListener('click', ()=>{
     const src = state.selected; if(!src) return;
     const w = src.offsetWidth, h = src.offsetHeight;
     const tileW = parseInt(src.dataset.tileW||'1',10)||1;
@@ -361,7 +400,17 @@
     state.counter++;
   });
 
-  delCompBtn.addEventListener('click', ()=>{ if(!state.selected) return; state.selected.remove(); state.selected=null; updateSelectionButtons(); });
+  delBtn.addEventListener('click', ()=>{ if(!state.selected) return; state.selected.remove(); state.selected=null; updateToolbarState(); });
+
+  // Rinomina (modal)
+  function openRename(){ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.classList.add('show'); renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); }
+  function closeRename(){ renameModal.classList.remove('show'); }
+  function saveRename(){ if(!state.selected) return; const v = (renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent = v; } closeRename(); }
+  renameBtn.addEventListener('click', openRename);
+  renameCancel.addEventListener('click', closeRename);
+  renameSave.addEventListener('click', saveRename);
+  renameModal.addEventListener('click', (e)=>{ if(e.target===renameModal) closeRename(); });
+  renameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') saveRename(); if(e.key==='Escape') closeRename(); });
 
   // Canvas
   applyCanvasBtn.addEventListener('click', ()=>{ const w=toInt(canvasWInput.value,state.canvas.w); const h=toInt(canvasHInput.value,state.canvas.h); applyCanvasSize(w,h); });
@@ -374,7 +423,7 @@
 
   // Boot
   applyCanvasSize(toInt(canvasWInput.value,1920), toInt(canvasHInput.value,1080));
-  updateSelectionButtons();
+  updateToolbarState();
 })();
 </script>
 </body>
