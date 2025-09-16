@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Snap + Labels</title>
+  <title>LEDWall Mapper – Snap & Pixel‑Perfect</title>
   <style>
     :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; }
     * { box-sizing: border-box; }
@@ -16,30 +16,36 @@
 
     /* Viewport / Canvas */
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
-    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; will-change: transform; }
-    #screen { position:absolute; left:10px; top:10px; width:1920px; height:1080px; background:#0c0d11; border:1px solid #1e2229; touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden; box-sizing:border-box; }
-    /* Grid di sfondo 100px del CANVAS */
-    #screen::before {
-      content:""; position:absolute; inset:0; pointer-events:none;
+    #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
+    #screen {
+      position:absolute; left:10px; top:10px; /* margine estetico nel viewport */
+      background:#0c0d11;
+      border:1px solid #1e2229;  /* bordo reale su tutti i lati */
+      box-sizing:content-box;     /* il bordo resta esterno alle dimensioni interne */
+      touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden;
+    }
+    /* Griglia 100px, nessun offset: niente doppie linee */
+    #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
         linear-gradient(to right, #181c24 1px, transparent 1px),
         linear-gradient(to bottom, #181c24 1px, transparent 1px);
-      background-size:100px 100px, 100px 100px;
-    }
+      background-size:100px 100px, 100px 100px; }
 
     /* Composizioni (rettangoli) */
     .comp {
       position:absolute; z-index:2; box-sizing:border-box;
-      background:rgba(69,184,255,0.12);
+      background:rgba(69,184,255,0.10);
       cursor:grab; touch-action:none; user-select:none;
-      background-image:
-        linear-gradient(to right, rgba(69,184,255,0.35) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(69,184,255,0.35) 1px, transparent 1px);
-      background-size:128px 128px, 128px 128px;
       display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
+      /* BORDO INTERNO 3px, sempre e ovunque */
+      box-shadow: inset 0 0 0 3px var(--acc);
+      /* Griglia interna (tile) – aggiornata via JS */
+      background-image:
+        linear-gradient(to right, rgba(69,184,255,0.30) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(69,184,255,0.30) 1px, transparent 1px);
+      background-size:128px 128px, 128px 128px;
     }
-    .comp.dragging { cursor:grabbing; }
-    .comp.selected { /* bordo gestito da ::after */ }
+    .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff; }
     .comp .name { font-weight:800; color:#eef6ff; text-shadow:0 1px 2px #000; font-size: clamp(14px, 3.2vw, 40px); line-height:1.1; pointer-events:none; }
     .comp .size { margin-top:4px; font-size: clamp(10px, 2vw, 18px); color:#d6e8ff; text-shadow:0 1px 2px #000; pointer-events:none; }
 
@@ -49,13 +55,11 @@
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .comp::after{content:"";position:absolute;inset:0;border:2px solid var(--acc);box-sizing:border-box;pointer-events:none}
-    .comp.selected::after{border-color:#7fd0ff;border-width:3px}
   </style>
 </head>
 <body>
   <header>
-    <div style="font-weight:800">LEDWall Mapper – Snap + Labels</div>
+    <div style="font-weight:800">LEDWall Mapper – Snap & Pixel‑Perfect</div>
   </header>
 
   <main>
@@ -80,7 +84,7 @@
       </div>
 
       <div class="panel">
-        <div style="font-weight:700; margin-bottom:8px">Nuova Composizione</div>
+        <div style="font-weight:700; margin-bottom:8px">Nuova composizione</div>
         <div>
           <label for="compName">Nome</label>
           <input id="compName" type="text" placeholder="Ledwall Main">
@@ -108,7 +112,7 @@
           <button id="dupComp" class="secondary" style="flex:1">Duplica selezionata</button>
           <button id="delComp" class="secondary" style="flex:1">Elimina selezionata</button>
         </div>
-        <div style="margin-top:6px;font-size:12px;color:#a0a6ad">TUTTO in pixel interi (nessuna virgola).</div>
+        <div style="margin-top:6px;font-size:12px;color:#a0a6ad">TUTTO in pixel interi (nessuna virgola). Snap morbido alla griglia e ai bordi/centri delle altre composizioni.</div>
       </div>
     </section>
 
@@ -125,7 +129,7 @@
   </main>
 
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch), snap morbido a griglia e ad altri rettangoli. Bordi interni pixel-perfect.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel‑perfect.</div>
   </footer>
 
 <script>
@@ -135,7 +139,7 @@
     canvas: { w:1920, h:1080 },
     scale: 1,
     counter: 0,
-    selected: null
+    selected: null,
   };
   const SNAP_THRESHOLD = 12; // px mondo
 
@@ -159,7 +163,7 @@
   const dupCompBtn = document.getElementById('dupComp');
   const delCompBtn = document.getElementById('delComp');
 
-  // Utils
+  // Utilities
   const toInt = (v, fb) => { const n = parseInt(String(v).replace(/[^0-9]/g,''),10); return Number.isFinite(n) && n>0 ? n : fb; };
   const px = (n)=> Math.round(n) + 'px';
 
@@ -222,7 +226,7 @@
       let nx = pointerWorldX - drag.offsetX;
       let ny = pointerWorldY - drag.offsetY;
 
-      // --- SNAP ALLE ALTRE COMPOSIZIONI (bordi/centri) ---
+      // --- SNAP ad altri rettangoli (bordi e centri) ---
       const comps = [...document.querySelectorAll('.comp')].filter(n=>n!==el);
       let bestDX = Infinity, bestNX = nx; let bestDY = Infinity, bestNY = ny;
       const L = nx, R = nx + w, CX = nx + w/2;
@@ -258,10 +262,10 @@
       }
       nx = bestNX; ny = bestNY;
 
-      // --- SNAP MORBIDO ALLA GRIGLIA DEL CANVAS ---
+      // --- SNAP alla griglia del rettangolo (tile) ---
       const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
       const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-      const originX = 0, originY = 0;
+      const originX = 0, originY = 0; // origine canvas
       const nearestGX = originX + Math.round((nx - originX)/tileW)*tileW;
       if (Math.abs(nx - nearestGX) <= SNAP_THRESHOLD) nx = nearestGX;
       const nearestGY = originY + Math.round((ny - originY)/tileH)*tileH;
@@ -290,6 +294,7 @@
     el.addEventListener('click', (e)=>{ e.stopPropagation(); selectComp(el); });
   }
 
+  // Aggiunta composizione
   function addComposition(){
     const name = (compNameInput.value || `Composizione ${state.counter+1}`).trim();
     const cols = toInt(colsInput.value, 1);
@@ -304,13 +309,10 @@
     el.className = 'comp';
     el.style.width = px(w);
     el.style.height = px(h);
-    el.style.left = '0px';
-    el.style.top  = '0px';
     el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`;
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // labels
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
@@ -342,7 +344,6 @@
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // copia label (aggiunge "Copy")
     const nameSrc = src.querySelector('.name')?.textContent || `Composizione`;
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = nameSrc + ' Copy'; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
