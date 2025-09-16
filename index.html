@@ -68,10 +68,9 @@
       background:rgba(10,15,20,0.55);
       border:1px solid rgba(127,208,255,0.35);
       border-radius:6px; padding:3px 6px;
-      max-width:55%;                 /* non invadere troppo */
+      max-width:55%;
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-      line-height:1; pointer-events:none; /* non interferisce col drag */
-      /* font-size dinamico via JS */
+      line-height:1; pointer-events:none;
     }
 
     label{display:block;font-size:12px;color:#cfd3d7;margin:0 0 4px}
@@ -86,17 +85,6 @@
     #toolbar button { background:none; border:1px solid #444; cursor:pointer; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
     #toolbar button:hover { background:rgba(255,255,255,0.08); }
     #toolbar .spacer { margin-left:auto; color:#a0a6ad; font-size:12px; }
-
-    /* Modal rinomina */
-    .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:50; }
-    .modal.show { display:flex; }
-    .dialog { background:#20242a; border:1px solid #2f343c; border-radius:10px; padding:14px; width:min(90vw,420px); box-shadow:0 10px 30px rgba(0,0,0,.5); }
-    .dialog h3 { margin:0 0 10px; font-size:16px; }
-    .dialog label { display:block; font-size:12px; color:#cfd3d7; margin:0 0 6px; }
-    .dialog input[type=text] { width:100%; padding:10px; border:1px solid #3a3f47; border-radius:8px; background:#0f1115; color:#e8eaed; font-size:16px; }
-    .dialog .row { display:flex; gap:8px; margin-top:12px; justify-content:flex-end; }
-    .dialog button { background:#2b90ff; color:#001018; border:none; border-radius:8px; padding:8px 12px; font-weight:700; cursor:pointer; }
-    .dialog button.secondary { background:#0f1115; color:#e8eaed; border:1px solid #3a3f47; }
   </style>
 </head>
 <body>
@@ -131,6 +119,7 @@
           <label for="compName">Nome</label>
           <input id="compName" type="text" placeholder="Ledwall Main">
         </div>
+
         <div class="grid2" style="margin-top:8px">
           <div>
             <label for="cols">Colonne (mattonelle)</label>
@@ -149,6 +138,19 @@
             <input id="tileH" type="number" min="1" step="1" value="128">
           </div>
         </div>
+
+        <!-- NUOVI CAMPI: Offset iniziale -->
+        <div class="grid2" style="margin-top:8px">
+          <div>
+            <label for="startX">Offset X (px)</label>
+            <input id="startX" type="number" min="0" step="1" value="0">
+          </div>
+          <div>
+            <label for="startY">Offset Y (px)</label>
+            <input id="startY" type="number" min="0" step="1" value="0">
+          </div>
+        </div>
+
         <button id="addComp" style="margin-top:10px; width:100%">Aggiungi composizione</button>
 
         <div style="margin-top:6px;font-size:12px;color:#a0a6ad">TUTTO in pixel interi (nessuna virgola). Snap morbido alla griglia e ai bordi/centri delle altre composizioni.</div>
@@ -173,12 +175,12 @@
   </main>
 
   <!-- Modal rinomina -->
-  <div id="renameModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+  <div id="renameModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="renameTitle" style="display:none;">
     <div class="dialog">
       <h3 id="renameTitle">Rinomina composizione</h3>
       <label for="renameInput">Nome</label>
       <input type="text" id="renameInput" autocomplete="off" />
-      <div class="row">
+      <div class="row" style="display:flex; gap:8px; margin-top:12px; justify-content:flex-end;">
         <button id="renameCancel" class="secondary">Annulla</button>
         <button id="renameSave">Salva</button>
       </div>
@@ -186,7 +188,9 @@
   </div>
 
   <footer>
-    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset X,Y dinamico.</div>
+    <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
+      Drag fluido (mouse+touch) ancorato al punto di presa • Snap morbido • Bordi interni da 3px pixel-perfect • Auto-fit testo • Offset X,Y dinamico • Offset iniziale a mano.
+    </div>
   </footer>
 
 <script>
@@ -217,6 +221,8 @@
   const rowsInput = document.getElementById('rows');
   const tileWInput = document.getElementById('tileW');
   const tileHInput = document.getElementById('tileH');
+  const startXInput = document.getElementById('startX');
+  const startYInput = document.getElementById('startY');
   const addCompBtn = document.getElementById('addComp');
 
   // Toolbar + modal rinomina
@@ -229,7 +235,7 @@
   const renameCancel = document.getElementById('renameCancel');
 
   // Utilities
-  const toInt = (v, fb) => { const n = parseInt(String(v).replace(/[^0-9]/g,''),10); return Number.isFinite(n) && n>0 ? n : fb; };
+  const toInt = (v, fb) => { const n = parseInt(String(v).replace(/[^0-9]/g,''),10); return Number.isFinite(n) && n>=0 ? n : fb; };
   const px = (n)=> Math.round(n) + 'px';
 
   function applyCanvasSize(w,h){
@@ -284,7 +290,6 @@
     const sizeEl = el.querySelector('.size');
     const offEl  = el.querySelector('.offset');
 
-    // NOME + DIMENSIONI (come prima)
     if (nameEl && sizeEl) {
       const padH = 16; // padding orizzontale totale
       const padV = 8;  // padding verticale totale
@@ -304,10 +309,10 @@
       sizeEl.style.fontSize = sizePx + "px";
     }
 
-    // OFFSET (auto-fit separato, area corner ~ metà larghezza e ~18% altezza)
+    // OFFSET (auto-fit separato)
     if (offEl) {
       const offText = offEl.textContent || "";
-      const cornerPadW = 8;  // tolleranza per bordo e padding
+      const cornerPadW = 8;
       const cornerPadH = 6;
       const maxWidth  = Math.max(20, Math.floor(el.clientWidth * 0.55) - cornerPadW);
       const maxHeight = Math.max(10, Math.floor(el.clientHeight * 0.18) - cornerPadH);
@@ -330,7 +335,6 @@
     const x = Math.round(parseFloat(el.style.left) || 0);
     const y = Math.round(parseFloat(el.style.top)  || 0);
     off.textContent = `(${x}, ${y})`;
-    // ricalcola font dell'offset (e degli altri) se necessario
     fitLabels(el);
   }
 
@@ -461,12 +465,14 @@
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
-    // posizione iniziale a cascata clampata
-    const base = 24 * (state.counter % 10);
-    const startX = Math.min(state.canvas.w - w, Math.max(0, base));
-    const startY = Math.min(state.canvas.h - h, Math.max(0, base));
-    el.style.left = px(startX);
-    el.style.top  = px(startY);
+    // offset iniziale manuale
+    let nx = toInt(startXInput.value, 0);
+    let ny = toInt(startYInput.value, 0);
+    // clamp entro canvas
+    nx = Math.max(0, Math.min(state.canvas.w - w, nx));
+    ny = Math.max(0, Math.min(state.canvas.h - h, ny));
+    el.style.left = px(nx);
+    el.style.top  = px(ny);
 
     screen.appendChild(el);
     makeDraggable(el);
@@ -508,7 +514,7 @@
 
     screen.appendChild(el);
     makeDraggable(el);
-    updateOffsetLabel(el); // include fitLabels
+    updateOffsetLabel(el);
     selectComp(el);
     state.counter++;
   });
@@ -516,8 +522,8 @@
   delBtn.addEventListener('click', ()=>{ if(!state.selected) return; state.selected.remove(); state.selected=null; updateToolbarState(); });
 
   // Rinomina (modal)
-  function openRename(){ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.classList.add('show'); renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); }
-  function closeRename(){ renameModal.classList.remove('show'); }
+  function openRename(){ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); }
+  function closeRename(){ renameModal.style.display='none'; }
   function saveRename(){ if(!state.selected) return; const v = (renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent = v; fitLabels(state.selected); } closeRename(); }
   renameBtn.addEventListener('click', openRename);
   renameCancel.addEventListener('click', closeRename);
@@ -535,7 +541,7 @@
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
 
   // Boot
-  applyCanvasSize(toInt(canvasWInput.value,1920), toInt(canvasHInput.value,1080));
+  applyCanvasSize(parseInt(canvasWInput.value,10)||1920, parseInt(canvasHInput.value,10)||1080);
   updateToolbarState();
 })();
 </script>
