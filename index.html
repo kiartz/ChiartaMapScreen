@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Snap & Pixel-Perfect + Palette in Toolbar</title>
+  <title>LEDWall Mapper – Multi-Screen, Snap & Pixel-Perfect</title>
   <style>
     :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; --tileLine:#9fd7ff; }
     * { box-sizing: border-box; }
@@ -34,9 +34,7 @@
       position:absolute; z-index:2; box-sizing:border-box;
       cursor:grab; touch-action:none; user-select:none;
       display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
-      /* Bordo interno 3px, sempre all'interno */
-      box-shadow: inset 0 0 0 3px var(--acc);
-      /* Il pattern (con le linee da 2px) viene impostato via JS: solo 1 layer url(...) */
+      box-shadow: inset 0 0 0 3px var(--acc); /* bordo interno 3px */
       padding: 4px 8px;
       background-repeat: repeat;
       background-position: 0 0;
@@ -77,13 +75,18 @@
     #toolbar .spacer { flex:1; }
     .divider { width:1px; height:26px; background:#2b2f36; }
 
-    /* Inline canvas size editor (compatto) */
+    /* Inline canvas size editor (compatto) + screen switcher */
     .canvas-size { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
     .canvas-size input { width:84px; padding:5px 6px; font-size:12px; }
     .canvas-size .x { color:#88909a; font-size:12px; }
     .canvas-size .btns { display:flex; gap:4px; }
     .canvas-size .btns button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
     .canvas-size .btns button:hover { background:rgba(255,255,255,0.08); }
+
+    .screen-ctrl { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
+    .screen-ctrl select { width:auto; padding:5px 6px; font-size:12px; }
+    .screen-ctrl button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
+    .screen-ctrl button:hover { background:rgba(255,255,255,0.08); }
 
     /* Palette in toolbar */
     .palette { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 8px; border-radius:8px; }
@@ -108,7 +111,7 @@
 </head>
 <body>
   <header>
-    <div style="font-weight:800">LEDWall Mapper – Snap & Pixel-Perfect</div>
+    <div style="font-weight:800">LEDWall Mapper – Multi-Screen, Snap & Pixel-Perfect</div>
   </header>
 
   <main>
@@ -158,7 +161,7 @@
 
           <span class="divider"></span>
 
-          <!-- Palette controls (valide per selezione; se nulla selezionato = default per nuove) -->
+          <!-- Palette -->
           <div class="palette" title="Palette mattonelle (1–4 colori)">
             <span style="font-size:12px;color:#a8b0bb">Colori</span>
             <select id="tbColorCount" aria-label="Numero colori">
@@ -185,8 +188,17 @@
             </div>
           </div>
 
+          <span class="divider"></span>
+
+          <!-- Screen switcher -->
+          <div class="screen-ctrl" title="Gestione schermi">
+            <select id="screenSelect" aria-label="Schermo"></select>
+            <button id="newScreenBtn" title="Nuovo schermo">Nuovo</button>
+          </div>
+
           <div class="spacer"></div>
 
+          <!-- Canvas size (per schermo selezionato) -->
           <div class="canvas-size" title="Dimensione canvas (formule supportate)">
             <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2" aria-label="Canvas width">
             <span class="x">×</span>
@@ -222,7 +234,7 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Drag fluido • Snap morbido • Bordi interni 3px • Linee mattonelle 2px luminose integrate nel pattern • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1–4 colori in toolbar.
+      Multi-Screen • Drag fluido • Snap tra rettangoli (prioritario) + griglia (secondaria) • Bordi interni 3px • Linee mattonelle 2px • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1–4 colori in toolbar.
     </div>
   </footer>
 
@@ -246,12 +258,14 @@
 
   // ===== Stato =====
   const state = {
-    canvas: { w:1920, h:1080 },
     scale: 1,
     selected: null,
-    defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'] }
+    defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'] },
+    screens: [],            // {id, name, canvas:{w,h}, compositions:[], defaults?}
+    activeScreenId: null,
   };
-  const SNAP_THRESHOLD = 12;
+  const SNAP_THRESHOLD_EDGE = 12;
+  const SNAP_THRESHOLD_GRID = 8;
   const MIN_OFFSET_FONT = 10;
   const TILE_LINE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--tileLine').trim() || '#9fd7ff';
 
@@ -296,29 +310,39 @@
 
   const recap = document.getElementById('recap');
 
+  // Screen switcher
+  const screenSelect = document.getElementById('screenSelect');
+  const newScreenBtn = document.getElementById('newScreenBtn');
+
   // ===== Canvas sizing =====
   function applyCanvasSize(w,h){
-    state.canvas.w = w; state.canvas.h = h;
     screen.style.width = px(w); screen.style.height = px(h);
     fitToViewport();
-    // Clamp composizioni
-    document.querySelectorAll('.comp').forEach(el=>{
-      let x = Math.round(parseFloat(el.style.left)||0);
-      let y = Math.round(parseFloat(el.style.top)||0);
-      const cw = el.offsetWidth, ch = el.offsetHeight;
-      x = Math.max(0, Math.min(state.canvas.w - cw, x));
-      y = Math.max(0, Math.min(state.canvas.h - ch, y));
-      el.style.left = px(x); el.style.top = px(y);
-      updateOffsetLabels(el);
-    });
+    clampAllComps();
   }
   function fitToViewport(){
     const vw = viewport.clientWidth - 16;
     const vh = viewport.clientHeight - 16;
-    const sx = vw / (state.canvas.w + 20);
-    const sy = vh / (state.canvas.h + 20);
+    const sx = vw / (getCanvas().w + 20);
+    const sy = vh / (getCanvas().h + 20);
     state.scale = Math.min(sx, sy, 1);
     screenWrap.style.transform = `translateZ(0) scale(${state.scale})`;
+  }
+  function getCanvas() {
+    const scr = getActiveScreen();
+    return scr ? scr.canvas : {w:1920,h:1080};
+  }
+  function clampAllComps(){
+    const {w:cw, h:ch} = getCanvas();
+    document.querySelectorAll('.comp').forEach(el=>{
+      let x = Math.round(parseFloat(el.style.left)||0);
+      let y = Math.round(parseFloat(el.style.top)||0);
+      const w = el.offsetWidth, h = el.offsetHeight;
+      x = Math.max(0, Math.min(cw - w, x));
+      y = Math.max(0, Math.min(ch - h, y));
+      el.style.left = px(x); el.style.top = px(y);
+      updateOffsetLabels(el);
+    });
   }
 
   function selectComp(el){
@@ -326,8 +350,8 @@
     state.selected = el;
     if (state.selected) {
       state.selected.classList.add('selected');
-      // sincronizza palette toolbar
-      const n = parseInt(state.selected.dataset.colorCount||state.defaults.colorCount,10);
+      // sync palette toolbar con selezione
+      const n = parseInt(state.selected.dataset.colorCount || state.defaults.colorCount,10);
       tbColorCount.value = String(n);
       const cols = getCompColors(state.selected);
       const arr = [tbCol1,tbCol2,tbCol3,tbCol4];
@@ -400,16 +424,14 @@
     ];
     return arr.slice(0, Math.max(1, Math.min(4, count)));
   }
-
   function makePatternDataURL(colors, tileW, tileH){
     const n = Math.max(1, Math.min(4, colors.length));
     let cols = colors.slice(0,n);
     let pattCols = 1, pattRows = 1;
-
     if (n === 1) { pattCols=1; pattRows=1; }
-    else if (n === 2) { pattCols=2; pattRows=2; /* c1 c2 / c2 c1 */ }
-    else if (n === 3) { pattCols=3; pattRows=3; /* (i+j)%3 */ }
-    else { pattCols=2; pattRows=2; /* c1 c2 / c3 c4 */ }
+    else if (n === 2) { pattCols=2; pattRows=2; }
+    else if (n === 3) { pattCols=3; pattRows=3; }
+    else { pattCols=2; pattRows=2; }
 
     const W = Math.max(1, tileW * pattCols);
     const H = Math.max(1, tileH * pattRows);
@@ -417,43 +439,28 @@
     const c = document.createElement('canvas');
     c.width = W; c.height = H;
     const ctx = c.getContext('2d');
-
-    // colore linea (2px totali tra mattonelle: 1px per ciascun lato)
     ctx.imageSmoothingEnabled = false;
 
     for (let r=0; r<pattRows; r++){
       for (let q=0; q<pattCols; q++){
         let color = cols[0];
-        if (n===1){
-          color = cols[0];
-        } else if (n===2){
-          color = ( (r+q) % 2 === 0 ) ? cols[0] : cols[1];
-        } else if (n===3){
-          color = cols[(r+q)%3];
-        } else if (n===4){
+        if (n===1){ color = cols[0]; }
+        else if (n===2){ color = ( (r+q) % 2 === 0 ) ? cols[0] : cols[1]; }
+        else if (n===3){ color = cols[(r+q)%3]; }
+        else { // 4
           if (r===0 && q===0) color = cols[0];
           else if (r===0 && q===1) color = cols[1];
           else if (r===1 && q===0) color = cols[2];
           else color = cols[3];
         }
-
         const x = q*tileW, y = r*tileH, w = tileW, h = tileH;
-
-        // 1) riempi l'intero tile con il colore linea
-        ctx.fillStyle = TILE_LINE_COLOR;
-        ctx.fillRect(x, y, w, h);
-
-        // 2) riempi l'area interna (w-2,h-2) con il colore della mattonella
+        ctx.fillStyle = TILE_LINE_COLOR; ctx.fillRect(x, y, w, h);
         const iw = Math.max(0, w-2), ih = Math.max(0, h-2);
-        if (iw>0 && ih>0){
-          ctx.fillStyle = color;
-          ctx.fillRect(x+1, y+1, iw, ih);
-        }
+        if (iw>0 && ih>0){ ctx.fillStyle = color; ctx.fillRect(x+1, y+1, iw, ih); }
       }
     }
     return { url: c.toDataURL(), pattW: W, pattH: H };
   }
-
   function applyCompBackground(el){
     const tileW = parseInt(el.dataset.tileW||'1',10)||1;
     const tileH = parseInt(el.dataset.tileH||'1',10)||1;
@@ -463,7 +470,7 @@
     el.style.backgroundSize  = `${pattW}px ${pattH}px`;
   }
 
-  // ===== Drag + Snap =====
+  // ===== Drag + Snap (con priorità ai bordi tra rettangoli) =====
   function makeDraggable(el){
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
@@ -484,121 +491,109 @@
       window.addEventListener('touchend', end);
     };
 
-const move = (e)=>{
-  if(!drag) return; 
-  e.preventDefault(); e.stopPropagation();
+    const move = (e)=>{
+      if(!drag) return; 
+      e.preventDefault(); e.stopPropagation();
 
-  const p = getPos(e); 
-  const pg = screen.getBoundingClientRect();
-  const pointerWorldX = (p.x - pg.left) / state.scale;
-  const pointerWorldY = (p.y - pg.top)  / state.scale;
-  const w = el.offsetWidth, h = el.offsetHeight;
+      const p = getPos(e); 
+      const pg = screen.getBoundingClientRect();
+      const pointerWorldX = (p.x - pg.left) / state.scale;
+      const pointerWorldY = (p.y - pg.top)  / state.scale;
+      const w = el.offsetWidth, h = el.offsetHeight;
 
-  let nx = pointerWorldX - drag.offsetX;
-  let ny = pointerWorldY - drag.offsetY;
+      let nx = pointerWorldX - drag.offsetX;
+      let ny = pointerWorldY - drag.offsetY;
 
-  // --- SNAP ad altri rettangoli (coerente: edge-edge e center-center)
-  const EDGE_THRESHOLD = 12;   // preferito
-  const GRID_THRESHOLD = 8;    // più morbido della griglia
+      const comps = [...document.querySelectorAll('.comp')].filter(n=>n!==el);
 
-  const comps = [...document.querySelectorAll('.comp')].filter(n=>n!==el);
+      // Mobile
+      const Lm = nx, Rm = nx + w, Cm = nx + w/2;
+      const Tm = ny, Bm = ny + h, CmY = ny + h/2;
 
-  // coordinate del mobile
-  const Lm = nx, Rm = nx + w, Cm = nx + w/2;
-  const Tm = ny, Bm = ny + h, CmY = ny + h/2;
+      let snappedX = false, snappedY = false;
+      let bestDX = Infinity, bestNX = nx;
+      let bestDY = Infinity, bestNY = ny;
 
-  let snappedX = false, snappedY = false;
-  let bestDX = Infinity, bestNX = nx;
-  let bestDY = Infinity, bestNY = ny;
+      const snapX = (curNx, targetX, what)=>{
+        switch(what){
+          case 'L=L': return targetX;
+          case 'R=R': return targetX - w;
+          case 'L=R': return targetX;
+          case 'R=L': return targetX - w;
+          case 'C=C': return Math.round(targetX - w/2);
+          default:    return curNx;
+        }
+      };
+      const snapY = (curNy, targetY, what)=>{
+        switch(what){
+          case 'T=T': return targetY;
+          case 'B=B': return targetY - h;
+          case 'T=B': return targetY;
+          case 'B=T': return targetY - h;
+          case 'C=C': return Math.round(targetY - h/2);
+          default:    return curNy;
+        }
+      };
 
-  // helper: imposta nx per allineare/accostare l'asse X
-  const snapX = (curNx, targetX, what)=>{
-    // what: 'L=L', 'R=R', 'L=R', 'R=L', 'C=C'
-    switch(what){
-      case 'L=L': return targetX;                // sinistra a sinistra (allineamento)
-      case 'R=R': return targetX - w;            // destra a destra (allineamento)
-      case 'L=R': return targetX;                // sinistra del mobile accostata alla destra del target
-      case 'R=L': return targetX - w;            // destra del mobile accostata alla sinistra del target
-      case 'C=C': return Math.round(targetX - w/2); // centro a centro
-      default:    return curNx;
-    }
-  };
-  // helper: imposta ny per allineare/accostare l'asse Y
-  const snapY = (curNy, targetY, what)=>{
-    // what: 'T=T', 'B=B', 'T=B', 'B=T', 'C=C'
-    switch(what){
-      case 'T=T': return targetY;
-      case 'B=B': return targetY - h;
-      case 'T=B': return targetY;        // top mobile accostato a bottom target
-      case 'B=T': return targetY - h;    // bottom mobile accostato a top target
-      case 'C=C': return Math.round(targetY - h/2);
-      default:    return curNy;
-    }
-  };
+      for (const n of comps){
+        const left = parseFloat(n.style.left)||0;
+        const top  = parseFloat(n.style.top)||0;
+        const nw = n.offsetWidth, nh = n.offsetHeight;
 
-  for (const n of comps){
-    const left = parseFloat(n.style.left)||0;
-    const top  = parseFloat(n.style.top)||0;
-    const nw = n.offsetWidth, nh = n.offsetHeight;
+        const Lt = left, Rt = left+nw, Ct = left+nw/2;
+        const Tt = top,  Bt = top+nh,  CtY= top+nh/2;
 
-    const Lt = left, Rt = left+nw, Ct = left+nw/2;
-    const Tt = top,  Bt = top+nh,  CtY= top+nh/2;
+        const pairsX = [
+          ['L=L', Math.abs(Lm - Lt),  Lt],
+          ['R=R', Math.abs(Rm - Rt),  Rt],
+          ['L=R', Math.abs(Lm - Rt),  Rt],
+          ['R=L', Math.abs(Rm - Lt),  Lt],
+          ['C=C', Math.abs(Cm - Ct),  Ct],
+        ];
+        for (const [what, dist, tx] of pairsX){
+          if (dist <= SNAP_THRESHOLD_EDGE && dist < bestDX){
+            bestDX = dist; bestNX = snapX(nx, tx, what); snappedX = true;
+          }
+        }
 
-    // X: confronta solo coppie coerenti
-    const pairsX = [
-      ['L=L', Math.abs(Lm - Lt),  Lt],
-      ['R=R', Math.abs(Rm - Rt),  Rt],
-      ['L=R', Math.abs(Lm - Rt),  Rt],
-      ['R=L', Math.abs(Rm - Lt),  Lt],
-      ['C=C', Math.abs(Cm - Ct),  Ct],
-    ];
-    for (const [what, dist, tx] of pairsX){
-      if (dist <= EDGE_THRESHOLD && dist < bestDX){
-        bestDX = dist; bestNX = snapX(nx, tx, what); snappedX = true;
+        const pairsY = [
+          ['T=T', Math.abs(Tm - Tt),  Tt],
+          ['B=B', Math.abs(Bm - Bt),  Bt],
+          ['T=B', Math.abs(Tm - Bt),  Bt],
+          ['B=T', Math.abs(Bm - Tt),  Tt],
+          ['C=C', Math.abs(CmY - CtY), CtY],
+        ];
+        for (const [what, dist, ty] of pairsY){
+          if (dist <= SNAP_THRESHOLD_EDGE && dist < bestDY){
+            bestDY = dist; bestNY = snapY(ny, ty, what); snappedY = true;
+          }
+        }
       }
-    }
 
-    // Y: idem coerente
-    const pairsY = [
-      ['T=T', Math.abs(Tm - Tt),  Tt],
-      ['B=B', Math.abs(Bm - Bt),  Bt],
-      ['T=B', Math.abs(Tm - Bt),  Bt],
-      ['B=T', Math.abs(Bm - Tt),  Tt],
-      ['C=C', Math.abs(CmY - CtY), CtY],
-    ];
-    for (const [what, dist, ty] of pairsY){
-      if (dist <= EDGE_THRESHOLD && dist < bestDY){
-        bestDY = dist; bestNY = snapY(ny, ty, what); snappedY = true;
+      nx = bestNX; ny = bestNY;
+
+      // Snap griglia solo se non abbiamo già snappato quell'asse
+      const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
+      const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
+      if (!snappedX){
+        const gx = Math.round(nx / tileW) * tileW;
+        if (Math.abs(nx - gx) <= SNAP_THRESHOLD_GRID) nx = gx;
       }
-    }
-  }
+      if (!snappedY){
+        const gy = Math.round(ny / tileH) * tileH;
+        if (Math.abs(ny - gy) <= SNAP_THRESHOLD_GRID) ny = gy;
+      }
 
-  // applica snap rettangoli
-  nx = bestNX; ny = bestNY;
+      // clamp entro canvas
+      const {w:cw, h:ch} = getCanvas();
+      nx = Math.max(0, Math.min(cw - w, nx));
+      ny = Math.max(0, Math.min(ch - h, ny));
 
-  // --- SNAP griglia (tile) SOLO se non abbiamo già snappato su quell'asse
-  const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
-  const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-
-  if (!snappedX){
-    const gx = Math.round(nx / tileW) * tileW;
-    if (Math.abs(nx - gx) <= GRID_THRESHOLD) nx = gx;
-  }
-  if (!snappedY){
-    const gy = Math.round(ny / tileH) * tileH;
-    if (Math.abs(ny - gy) <= GRID_THRESHOLD) ny = gy;
-  }
-
-  // clamp entro canvas
-  nx = Math.max(0, Math.min(state.canvas.w - w, nx));
-  ny = Math.max(0, Math.min(state.canvas.h - h, ny));
-
-  nx = Math.round(nx); ny = Math.round(ny);
-  el.style.left = nx + 'px';
-  el.style.top  = ny + 'px';
-  updateOffsetLabels(el);
-};
-
+      nx = Math.round(nx); ny = Math.round(ny);
+      el.style.left = nx + 'px';
+      el.style.top  = ny + 'px';
+      updateOffsetLabels(el);
+    };
 
     const end = ()=>{
       drag = null;
@@ -615,6 +610,7 @@ const move = (e)=>{
 
   // ===== Creazione composizione =====
   function addComposition(){
+    const scr = getActiveScreen(); if (!scr) return;
     const name = (compNameInput.value || `Composizione`).trim();
     const baseCols=8, baseRows=4, baseTW=128, baseTH=128, baseSX=0, baseSY=0;
     const cols  = Math.max(1, evalIntExpression(colsInput.value,  baseCols) ?? baseCols);
@@ -635,7 +631,6 @@ const move = (e)=>{
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // palette dai defaults correnti di toolbar (se nulla selezionato)
     el.dataset.colorCount = tbColorCount.value;
     el.dataset.c1 = tbCol1.value;
     el.dataset.c2 = tbCol2.value;
@@ -647,8 +642,9 @@ const move = (e)=>{
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
 
-    nx = Math.min(state.canvas.w - w, nx);
-    ny = Math.min(state.canvas.h - h, ny);
+    const {w:cw, h:ch} = scr.canvas;
+    nx = Math.min(cw - w, nx);
+    ny = Math.min(ch - h, ny);
     el.style.left = px(nx);
     el.style.top  = px(ny);
 
@@ -684,7 +680,6 @@ const move = (e)=>{
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
 
-    // Copia palette
     el.dataset.colorCount = src.dataset.colorCount || '2';
     el.dataset.c1 = src.dataset.c1 || '#3b82f6';
     el.dataset.c2 = src.dataset.c2 || '#10b981';
@@ -700,8 +695,9 @@ const move = (e)=>{
 
     let nx = (parseFloat(src.style.left)||0) + 24;
     let ny = (parseFloat(src.style.top)||0) + 24;
-    nx = Math.min(state.canvas.w - w, Math.max(0, nx));
-    ny = Math.min(state.canvas.h - h, Math.max(0, ny));
+    const {w:cw, h:ch} = getCanvas();
+    nx = Math.min(cw - w, Math.max(0, nx));
+    ny = Math.min(ch - h, Math.max(0, ny));
     el.style.left = px(nx); el.style.top  = px(ny);
 
     screen.appendChild(el);
@@ -719,10 +715,12 @@ const move = (e)=>{
     if(next){ selectComp(next); }
   });
 
-  // ===== Canvas controls =====
+  // ===== Canvas controls (per schermo attivo) =====
   function applyCanvasFromInputs(){
-    const newW = Math.max(1, evalIntExpression(canvasWInput.value, state.canvas.w) || state.canvas.w);
-    const newH = Math.max(1, evalIntExpression(canvasHInput.value, state.canvas.h) || state.canvas.h);
+    const scr = getActiveScreen(); if(!scr) return;
+    const newW = Math.max(1, evalIntExpression(canvasWInput.value, scr.canvas.w) || scr.canvas.w);
+    const newH = Math.max(1, evalIntExpression(canvasHInput.value, scr.canvas.h) || scr.canvas.h);
+    scr.canvas.w = newW; scr.canvas.h = newH;
     applyCanvasSize(newW, newH);
     canvasWInput.value = String(newW);
     canvasHInput.value = String(newH);
@@ -733,12 +731,11 @@ const move = (e)=>{
   // ===== Toolbar palette: visibilità e change =====
   function updateToolbarColorVisibility(){
     const n = parseInt(tbColorCount.value,10);
-    sw3.style.display = n>=3 ? '' : 'none';
-    sw4.style.display = n>=4 ? '' : 'none';
+    document.getElementById('sw3').style.display = n>=3 ? '' : 'none';
+    document.getElementById('sw4').style.display = n>=4 ? '' : 'none';
   }
   updateToolbarColorVisibility();
 
-  // Cambi numero colori
   tbColorCount.addEventListener('change', ()=>{
     updateToolbarColorVisibility();
     if (state.selected){
@@ -748,8 +745,6 @@ const move = (e)=>{
       state.defaults.colorCount = parseInt(tbColorCount.value,10);
     }
   });
-
-  // Cambi colore
   [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp, i)=>{
     const prev = [sw1p,sw2p,sw3p,sw4p][i];
     inp.addEventListener('input', ()=>{
@@ -762,13 +757,6 @@ const move = (e)=>{
       }
     });
   });
-
-  // ===== Aggiungi composizione =====
-  addCompBtn.addEventListener('click', addComposition);
-  screen.addEventListener('click', ()=>{ clearSelection(); });
-
-  new ResizeObserver(()=>fitToViewport()).observe(viewport);
-  window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
 
   // ===== Recap =====
   function getAllComps(){ return [...document.querySelectorAll('.comp')]; }
@@ -784,7 +772,6 @@ const move = (e)=>{
     const id = el.dataset.id || '';
     return {id, name, cols, rows, tileW, tileH, w, h, x, y};
   }
-
   function refreshRecap(){
     const items = getAllComps().map(compData);
     recap.innerHTML = '';
@@ -822,7 +809,7 @@ const move = (e)=>{
       const twEl   = makeEditable('TileW', it.tileW,'tileW', 5);
       const thEl   = makeEditable('TileH', it.tileH,'tileH', 5);
       const xEl    = makeEditable('X', it.x, 'x', 4);
-      const yEl    = makeEditable('Y', it.y, 'y', 4);
+      const yEl    = makeEditable('Y', it.y, 4);
 
       const tot = document.createElement('span'); tot.className='pill'; tot.textContent = `Tot: ${it.w}×${it.h}px`;
 
@@ -841,20 +828,17 @@ const move = (e)=>{
       recap.appendChild(row);
     }
   }
-
   function selectById(id){
     const el = getAllComps().find(n=> n.dataset.id===id);
     if (el) selectComp(el);
     highlightRecapSelection();
   }
-
   function highlightRecapSelection(){
     const idSel = state.selected?.dataset.id;
     recap.querySelectorAll('.recap-item').forEach(r=>{
       r.classList.toggle('selected', r.dataset.id===idSel);
     });
   }
-
   function applyEdit(id, field, rawValue, baseValue){
     const el = getAllComps().find(n=> n.dataset.id===id);
     if (!el) return;
@@ -885,16 +869,16 @@ const move = (e)=>{
       case 'y': y = Math.max(0, v); break;
     }
 
-    w = Math.max(1, Math.min(state.canvas.w, w));
-    h = Math.max(1, Math.min(state.canvas.h, h));
-    x = Math.min(state.canvas.w - w, Math.max(0, x));
-    y = Math.min(state.canvas.h - h, Math.max(0, y));
+    const {w:cw, h:ch} = getCanvas();
+    w = Math.max(1, Math.min(cw, w));
+    h = Math.max(1, Math.min(ch, h));
+    x = Math.min(cw - w, Math.max(0, x));
+    y = Math.min(ch - h, Math.max(0, y));
 
     el.style.width = px(w);
     el.style.height = px(h);
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
-
     el.querySelector('.size').textContent = `${w}×${h}px`;
     el.style.left = px(x);
     el.style.top  = px(y);
@@ -903,11 +887,12 @@ const move = (e)=>{
 
     selectComp(el);
     refreshRecap();
+    persistCurrentScreen(); // salva modifiche nello schermo
   }
 
-  // ===== Salva / Carica =====
-  function getAllComps(){ return [...document.querySelectorAll('.comp')]; }
-  function collectProject(){
+  // ===== Salva/Carica Progetto (multi-screen) =====
+  function collectCurrentScreen(){
+    const scr = getActiveScreen(); if(!scr) return;
     const comps = getAllComps().map(el=>{
       const w = el.offsetWidth, h = el.offsetHeight;
       const tileW = parseInt(el.dataset.tileW||'1',10)||1;
@@ -924,16 +909,20 @@ const move = (e)=>{
         colors: [el.dataset.c1, el.dataset.c2, el.dataset.c3, el.dataset.c4]
       };
     });
+    scr.compositions = comps;
+  }
+  function persistCurrentScreen(){ collectCurrentScreen(); }
 
+  function collectProject(){
+    persistCurrentScreen();
     return {
-      version: 3,
+      version: 4,
       name: (projectNameInput.value||'Progetto').trim(),
-      canvas: { w: state.canvas.w, h: state.canvas.h },
-      compositions: comps,
       defaults: {
         colorCount: parseInt(tbColorCount.value,10),
         colors: [tbCol1.value, tbCol2.value, tbCol3.value, tbCol4.value]
-      }
+      },
+      screens: state.screens
     };
   }
   function saveProject(){
@@ -947,6 +936,7 @@ const move = (e)=>{
     URL.revokeObjectURL(url);
   }
   function clearCanvas(){ getAllComps().forEach(el=> el.remove()); state.selected = null; updateToolbarState(); refreshRecap(); }
+
   function createCompFromData(c){
     const w = c.cols * c.tileW, h = c.rows * c.tileH;
     const el = document.createElement('div');
@@ -965,19 +955,27 @@ const move = (e)=>{
     const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = c.name || 'Composizione'; el.appendChild(nameEl);
     const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
-    let nx = Math.max(0, Math.min(state.canvas.w - w, Math.round(c.x||0)));
-    let ny = Math.max(0, Math.min(state.canvas.h - h, Math.round(c.y||0)));
+    let nx = Math.max(0, Math.min(getCanvas().w - w, Math.round(c.x||0)));
+    let ny = Math.max(0, Math.min(getCanvas().h - h, Math.round(c.y||0)));
     el.style.left = px(nx); el.style.top  = px(ny);
     screen.appendChild(el); makeDraggable(el); applyCompBackground(el); updateOffsetLabels(el);
   }
+
+  function loadScreenIntoDOM(screenObj){
+    // applica canvas
+    applyCanvasSize(screenObj.canvas.w, screenObj.canvas.h);
+    canvasWInput.value = String(screenObj.canvas.w);
+    canvasHInput.value = String(screenObj.canvas.h);
+    // svuota composizioni e ricarica
+    clearCanvas();
+    (screenObj.compositions||[]).forEach(createCompFromData);
+    refreshRecap();
+  }
+
   function loadProjectFromObject(obj){
     if (!obj || typeof obj !== 'object') return;
-    const w = Math.max(1, parseInt(obj.canvas?.w,10) || 1920);
-    const h = Math.max(1, parseInt(obj.canvas?.h,10) || 1080);
-    applyCanvasSize(w,h); canvasWInput.value = String(w); canvasHInput.value = String(h);
-    projectNameInput.value = obj.name || '';
 
-    // defaults palette (toolbar)
+    // defaults palette globali
     if (obj.defaults){
       const n = Math.max(1, Math.min(4, parseInt(obj.defaults.colorCount||2,10)));
       tbColorCount.value = String(n);
@@ -991,10 +989,28 @@ const move = (e)=>{
       state.defaults.colors = [tbCol1.value, tbCol2.value, tbCol3.value, tbCol4.value];
     }
 
-    clearCanvas();
-    (obj.compositions||[]).forEach(createCompFromData);
-    refreshRecap();
+    state.screens = Array.isArray(obj.screens) && obj.screens.length
+      ? obj.screens.map(s=>({
+          id: s.id || uid(),
+          name: s.name || 'Schermo',
+          canvas: { w: Math.max(1, parseInt(s.canvas?.w||1920,10)), h: Math.max(1, parseInt(s.canvas?.h||1080,10)) },
+          compositions: Array.isArray(s.compositions) ? s.compositions : []
+        }))
+      : [{
+          id: uid(),
+          name: 'Schermo 1',
+          canvas: { w: 1920, h: 1080 },
+          compositions: []
+        }];
+
+    projectNameInput.value = obj.name || '';
+
+    if (!state.activeScreenId) state.activeScreenId = state.screens[0].id;
+    updateScreenSelect();
+    const cur = getActiveScreen();
+    loadScreenIntoDOM(cur);
   }
+
   saveBtn.addEventListener('click', saveProject);
   loadFile.addEventListener('change', (e)=>{
     const file = e.target.files?.[0]; if(!file) return;
@@ -1006,10 +1022,85 @@ const move = (e)=>{
     reader.readAsText(file); e.target.value = '';
   });
 
+  // ===== Schermi: select + nuovo =====
+  function getActiveScreen(){ return state.screens.find(s=> s.id===state.activeScreenId) || null; }
+  function updateScreenSelect(){
+    screenSelect.innerHTML = '';
+    state.screens.forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = `${s.name} (${s.canvas.w}×${s.canvas.h})`;
+      screenSelect.appendChild(opt);
+    });
+    if (!state.screens.find(s=> s.id===state.activeScreenId) && state.screens[0]) {
+      state.activeScreenId = state.screens[0].id;
+    }
+    screenSelect.value = state.activeScreenId || (state.screens[0]?.id || '');
+  }
+
+  screenSelect.addEventListener('change', ()=>{
+    const newId = screenSelect.value;
+    if (!newId || newId === state.activeScreenId) return;
+    // salva schermo corrente
+    persistCurrentScreen();
+    state.activeScreenId = newId;
+    // carica nuovo schermo
+    const scr = getActiveScreen(); if (scr) loadScreenIntoDOM(scr);
+  });
+
+  newScreenBtn.addEventListener('click', ()=>{
+    // salva corrente
+    persistCurrentScreen();
+    const baseW = getCanvas().w, baseH = getCanvas().h;
+    const name = prompt('Nome nuovo schermo:', `Schermo ${state.screens.length+1}`) || `Schermo ${state.screens.length+1}`;
+    const wIn = prompt('Larghezza (px):', String(baseW)) || String(baseW);
+    const hIn = prompt('Altezza (px):',   String(baseH)) || String(baseH);
+    const w = Math.max(1, parseInt(wIn,10) || baseW);
+    const h = Math.max(1, parseInt(hIn,10) || baseH);
+
+    const scr = { id: uid(), name, canvas:{w,h}, compositions:[] };
+    state.screens.push(scr);
+    state.activeScreenId = scr.id;
+    updateScreenSelect();
+    loadScreenIntoDOM(scr);
+  });
+
+  // ===== Utility per selezione recap / edit =====
+  function yElFix(e){ /* placeholder se servisse */ }
+
+  function selectById(id){
+    const el = getAllComps().find(n=> n.dataset.id===id);
+    if (el) selectComp(el);
+    highlightRecapSelection();
+  }
+
+  function highlightRecapSelection(){
+    const idSel = state.selected?.dataset.id;
+    recap.querySelectorAll('.recap-item').forEach(r=>{
+      r.classList.toggle('selected', r.dataset.id===idSel);
+    });
+  }
+
+  // ===== Aggiungi composizione =====
+  addCompBtn.addEventListener('click', ()=>{ addComposition(); persistCurrentScreen(); });
+
+  // ===== Interazioni canvas/viewport =====
+  screen.addEventListener('click', ()=>{ clearSelection(); });
+  new ResizeObserver(()=>fitToViewport()).observe(viewport);
+  window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
+
   // ===== Boot =====
-  applyCanvasSize(1920, 1080);
-  // Demo iniziale
-  addComposition();
+  // progetto iniziale con 1 schermo
+  state.screens = [{
+    id: uid(),
+    name: 'Schermo 1',
+    canvas: { w:1920, h:1080 },
+    compositions: []
+  }];
+  state.activeScreenId = state.screens[0].id;
+  updateScreenSelect();
+  applyCanvasSize(1920,1080);
+  canvasWInput.value = '1920';
+  canvasHInput.value = '1080';
   refreshRecap();
   updateToolbarState();
 })();
