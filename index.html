@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Multi-Screen, Snap & Export PNG</title>
+  <title>LEDWall Mapper – Multi-Screen, Snap & Pixel-Perfect</title>
   <style>
     :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; --tileLine:#9fd7ff; }
     * { box-sizing: border-box; }
@@ -14,7 +14,7 @@
     #left { width:420px; display:flex; flex-direction:column; gap:10px; }
     #work { flex:1; display:flex; flex-direction:column; gap:10px; }
 
-    /* Viewport / Canvas (con griglia SOLO in editor) */
+    /* Viewport / Canvas */
     #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
     #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
     #screen {
@@ -22,6 +22,7 @@
       background:#0c0d11; border:1px solid #1e2229; box-sizing:content-box;
       touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden;
     }
+    /* Griglia canvas 100px */
     #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
         linear-gradient(to right, #181c24 1px, transparent 1px),
@@ -65,6 +66,8 @@
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
 
+    .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+
     /* Toolbar sopra il canvas */
     #toolbar { display:flex; gap:8px; margin-bottom:8px; align-items:center; flex-wrap:wrap; }
     #toolbar button.icon { background:none; border:1px solid #444; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
@@ -72,24 +75,25 @@
     #toolbar .spacer { flex:1; }
     .divider { width:1px; height:26px; background:#2b2f36; }
 
+    /* Inline canvas size editor (compatto) + screen switcher */
+    .canvas-size { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
+    .canvas-size input { width:84px; padding:5px 6px; font-size:12px; }
+    .canvas-size .x { color:#88909a; font-size:12px; }
+    .canvas-size .btns { display:flex; gap:4px; }
+    .canvas-size .btns button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
+    .canvas-size .btns button:hover { background:rgba(255,255,255,0.08); }
+
+    .screen-ctrl { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
+    .screen-ctrl select { width:auto; padding:5px 6px; font-size:12px; }
+    .screen-ctrl button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
+    .screen-ctrl button:hover { background:rgba(255,255,255,0.08); }
+
     /* Palette in toolbar */
     .palette { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 8px; border-radius:8px; }
     .palette select{ width:auto; padding:4px 6px; font-size:12px; }
     .swatch { width:24px; height:22px; border-radius:6px; border:1px solid #2b2f36; overflow:hidden; position:relative; }
     .swatch input[type=color]{ position:absolute; inset:0; opacity:0; cursor:pointer; }
     .swatch .preview{ position:absolute; inset:0; border-radius:6px; }
-
-    /* Screen switcher & canvas size */
-    .screen-ctrl, .canvas-size, .newcomp { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
-    .screen-ctrl select { width:auto; padding:5px 6px; font-size:12px; }
-    .screen-ctrl button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
-    .canvas-size input { width:84px; padding:5px 6px; font-size:12px; }
-    .canvas-size .x { color:#88909a; font-size:12px; }
-    .canvas-size .btns { display:flex; gap:4px; }
-    .canvas-size .btns button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
-    .newcomp input { width:76px; padding:4px 6px; font-size:12px; }
-    .newcomp .lbl { color:#a8b0bb; font-size:12px; margin-right:4px; }
-    .newcomp .btn { background:none; border:1px solid #444; padding:4px 8px; font-size:12px; border-radius:6px; color:#cfe6ff; }
 
     /* Recap */
     #recap { max-height:280px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
@@ -107,20 +111,38 @@
 </head>
 <body>
   <header>
-    <div style="font-weight:800">LEDWall Mapper – Multi-Screen, Snap & Export PNG</div>
+    <div style="font-weight:800">LEDWall Mapper – Multi-Screen, Snap & Pixel-Perfect</div>
   </header>
 
   <main>
     <section id="left">
-      <!-- Project Bar (salva/carica) -->
+      <!-- Project Bar -->
       <div class="panel" style="padding:10px">
         <div id="projectBar" style="display:flex; gap:6px; align-items:center;">
           <input id="projectName" type="text" style="flex:1" placeholder="Nome progetto (es. MainStage)" />
-          <button id="saveBtn" title="Salva progetto (JSON)">💾</button>
-          <label for="loadFile" class="secondary" style="padding:6px 8px; cursor:pointer" title="Carica progetto (JSON)">📂</label>
+          <button id="saveBtn" title="Salva (JSON)">💾</button>
+          <label for="loadFile" class="secondary" style="padding:6px 8px; cursor:pointer" title="Carica (JSON)">📂</label>
           <input id="loadFile" type="file" accept=".json,application/json" style="display:none">
         </div>
-        <div style="margin-top:6px"><small>I campi numerici accettano formule: <code>*2</code>, <code>+64</code>, <code>128*3</code>…</small></div>
+        <div style="margin-top:6px"><small>I campi accettano formule: <code>*2</code>, <code>+64</code>, <code>128*3</code>…</small></div>
+      </div>
+
+      <!-- Nuova composizione (compatto) -->
+      <div class="panel" style="padding:10px">
+        <div style="font-weight:700; margin-bottom:6px">Nuova composizione</div>
+        <div>
+          <label for="compName">Nome</label>
+          <input id="compName" type="text" placeholder="Ledwall Main">
+        </div>
+        <div class="grid6" style="margin-top:6px">
+          <div><label for="cols">Cols</label><input id="cols" type="text" value="8"  placeholder="8, *2"></div>
+          <div><label for="rows">Rows</label><input id="rows" type="text" value="4"  placeholder="4, +1"></div>
+          <div><label for="tileW">TileW</label><input id="tileW" type="text" value="128" placeholder="128, *2"></div>
+          <div><label for="tileH">TileH</label><input id="tileH" type="text" value="128" placeholder="128, -16"></div>
+          <div><label for="startX">X</label><input id="startX" type="text" value="0" placeholder="0, +128"></div>
+          <div><label for="startY">Y</label><input id="startY" type="text" value="0" placeholder="0, +128"></div>
+        </div>
+        <button id="addComp" style="margin-top:10px; width:100%">Aggiungi</button>
       </div>
 
       <!-- Recap -->
@@ -132,78 +154,63 @@
 
     <section id="work">
       <div class="panel" style="display:flex; flex-direction:column; gap:8px; min-height:72vh">
-        <div id="toolbar">
-          <!-- azioni comp -->
-          <button id="renameBtn" class="icon" title="Rinomina">✎</button>
-          <button id="duplicateBtn" class="icon" title="Duplica">⧉</button>
-          <button id="deleteBtn" class="icon" title="Elimina">🗑️</button>
+<div id="toolbar">
+  <button id="renameBtn" class="icon" title="Rinomina">✎</button>
+  <button id="duplicateBtn" class="icon" title="Duplica">⧉</button>
+  <button id="deleteBtn" class="icon" title="Elimina">🗑️</button>
 
-          <span class="divider"></span>
+  <span class="divider"></span>
 
-          <!-- Palette -->
-          <div class="palette" title="Palette mattonelle (1–4 colori)">
-            <span style="font-size:12px;color:#a8b0bb">Colori</span>
-            <select id="tbColorCount" aria-label="Numero colori">
-              <option value="1">1</option>
-              <option value="2" selected>2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-            </select>
-            <div class="swatch" id="sw1" title="Colore 1">
-              <div class="preview" id="sw1p" style="background:#3b82f6"></div>
-              <input type="color" id="tbCol1" value="#3b82f6">
-            </div>
-            <div class="swatch" id="sw2" title="Colore 2">
-              <div class="preview" id="sw2p" style="background:#10b981"></div>
-              <input type="color" id="tbCol2" value="#10b981">
-            </div>
-            <div class="swatch" id="sw3" title="Colore 3" style="display:none">
-              <div class="preview" id="sw3p" style="background:#f97316"></div>
-              <input type="color" id="tbCol3" value="#f97316">
-            </div>
-            <div class="swatch" id="sw4" title="Colore 4" style="display:none">
-              <div class="preview" id="sw4p" style="background:#ec4899"></div>
-              <input type="color" id="tbCol4" value="#ec4899">
-            </div>
-          </div>
+  <!-- Palette -->
+  <div class="palette" title="Palette mattonelle (1–4 colori)">
+    <span style="font-size:12px;color:#a8b0bb">Colori</span>
+    <select id="tbColorCount" aria-label="Numero colori">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+    </select>
+    <div class="swatch" id="sw1" title="Colore 1">
+      <div class="preview" id="sw1p" style="background:#3b82f6"></div>
+      <input type="color" id="tbCol1" value="#3b82f6">
+    </div>
+    <div class="swatch" id="sw2" title="Colore 2">
+      <div class="preview" id="sw2p" style="background:#10b981"></div>
+      <input type="color" id="tbCol2" value="#10b981">
+    </div>
+    <div class="swatch" id="sw3" title="Colore 3" style="display:none">
+      <div class="preview" id="sw3p" style="background:#f97316"></div>
+      <input type="color" id="tbCol3" value="#f97316">
+    </div>
+    <div class="swatch" id="sw4" title="Colore 4" style="display:none">
+      <div class="preview" id="sw4p" style="background:#ec4899"></div>
+      <input type="color" id="tbCol4" value="#ec4899">
+    </div>
+  </div>
 
-          <span class="divider"></span>
+  <span class="divider"></span>
 
-          <!-- Nuova composizione (COMPATTA, in toolbar) -->
-          <div class="newcomp" title="Nuova composizione">
-            <span class="lbl">Nuova</span>
-            <input id="compName" type="text" placeholder="Nome" style="width:120px">
-            <input id="cols"   type="text" value="8"   placeholder="Cols">
-            <input id="rows"   type="text" value="4"   placeholder="Rows">
-            <input id="tileW"  type="text" value="128" placeholder="TileW">
-            <input id="tileH"  type="text" value="128" placeholder="TileH">
-            <input id="startX" type="text" value="0"   placeholder="X">
-            <input id="startY" type="text" value="0"   placeholder="Y">
-            <button id="addComp" class="btn">Aggiungi</button>
-          </div>
+  <!-- Spinge a destra il blocco schermo+canvas -->
+  <div class="spacer"></div>
 
-          <span class="divider"></span>
+  <!-- Schermo (ORA a sinistra delle dimensioni canvas) -->
+  <div class="screen-ctrl" title="Gestione schermi">
+    <select id="screenSelect" aria-label="Schermo"></select>
+    <button id="newScreenBtn" title="Nuovo schermo">Nuovo</button>
+  </div>
 
-          <!-- Screen switcher -->
-          <div class="screen-ctrl" title="Gestione schermi">
-            <select id="screenSelect" aria-label="Schermo"></select>
-            <button id="newScreenBtn" title="Nuovo schermo">Nuovo</button>
-          </div>
+  <!-- Canvas size (rimane a destra) -->
+  <div class="canvas-size" title="Dimensione canvas (formule supportate)">
+    <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2" aria-label="Canvas width">
+    <span class="x">×</span>
+    <input id="canvasH" type="text" value="1080" placeholder="1080, *2" aria-label="Canvas height">
+    <div class="btns">
+      <button id="applyCanvas" title="Applica">Applica</button>
+      <button id="fit" title="Fit">Fit</button>
+    </div>
+  </div>
+</div>
 
-          <div class="spacer"></div>
-
-          <!-- Canvas size + Export -->
-          <div class="canvas-size" title="Dimensione canvas (formule supportate)">
-            <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2" aria-label="Canvas width">
-            <span class="x">×</span>
-            <input id="canvasH" type="text" value="1080" placeholder="1080, *2" aria-label="Canvas height">
-            <div class="btns">
-              <button id="applyCanvas" title="Applica">Applica</button>
-              <button id="fit" title="Fit">Fit</button>
-              <button id="exportPng" title="Esporta PNG (tutti gli schermi)">Export PNG</button>
-            </div>
-          </div>
-        </div>
 
         <div id="viewport">
           <div id="screenWrap">
@@ -229,7 +236,7 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Multi-Screen • Drag fluido • Snap tra rettangoli (prioritario) + griglia (secondaria) • Bordi interni 3px • Linee mattonelle 2px • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1–4 colori • **Export PNG** nero (uno per schermo).
+      Multi-Screen • Drag fluido • Snap tra rettangoli (prioritario) + griglia (secondaria) • Bordi interni 3px • Linee mattonelle 2px • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1–4 colori in toolbar.
     </div>
   </footer>
 
@@ -256,7 +263,7 @@
     scale: 1,
     selected: null,
     defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'] },
-    screens: [],            // {id, name, canvas:{w,h}, compositions:[]}
+    screens: [],            // {id, name, canvas:{w,h}, compositions:[], defaults?}
     activeScreenId: null,
   };
   const SNAP_THRESHOLD_EDGE = 12;
@@ -294,7 +301,6 @@
   const canvasHInput = document.getElementById('canvasH');
   const applyCanvasBtn = document.getElementById('applyCanvas');
   const fitBtn = document.getElementById('fit');
-  const exportBtn = document.getElementById('exportPng');
 
   // Palette (toolbar)
   const tbColorCount = document.getElementById('tbColorCount');
@@ -450,7 +456,6 @@
           else color = cols[3];
         }
         const x = q*tileW, y = r*tileH, w = tileW, h = tileH;
-        // bordo tile 2px (1+1) con colore più luminoso
         ctx.fillStyle = TILE_LINE_COLOR; ctx.fillRect(x, y, w, h);
         const iw = Math.max(0, w-2), ih = Math.max(0, h-2);
         if (iw>0 && ih>0){ ctx.fillStyle = color; ctx.fillRect(x+1, y+1, iw, ih); }
@@ -467,7 +472,7 @@
     el.style.backgroundSize  = `${pattW}px ${pattH}px`;
   }
 
-  // ===== Drag + Snap (priorità bordi tra rettangoli) =====
+  // ===== Drag + Snap (con priorità ai bordi tra rettangoli) =====
   function makeDraggable(el){
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
@@ -569,7 +574,7 @@
 
       nx = bestNX; ny = bestNY;
 
-      // Snap griglia solo se non già snappati su quell'asse
+      // Snap griglia solo se non abbiamo già snappato quell'asse
       const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
       const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
       if (!snappedX){
@@ -725,7 +730,7 @@
   document.getElementById('applyCanvas').addEventListener('click', applyCanvasFromInputs);
   fitBtn.addEventListener('click', fitToViewport);
 
-  // ===== Toolbar palette =====
+  // ===== Toolbar palette: visibilità e change =====
   function updateToolbarColorVisibility(){
     const n = parseInt(tbColorCount.value,10);
     document.getElementById('sw3').style.display = n>=3 ? '' : 'none';
@@ -806,7 +811,7 @@
       const twEl   = makeEditable('TileW', it.tileW,'tileW', 5);
       const thEl   = makeEditable('TileH', it.tileH,'tileH', 5);
       const xEl    = makeEditable('X', it.x, 'x', 4);
-      const yEl    = makeEditable('Y', it.y, 'y', 4);
+      const yEl    = makeEditable('Y', it.y, 4);
 
       const tot = document.createElement('span'); tot.className='pill'; tot.textContent = `Tot: ${it.w}×${it.h}px`;
 
@@ -826,7 +831,7 @@
     }
   }
   function selectById(id){
-    const el = [...document.querySelectorAll('.comp')].find(n=> n.dataset.id===id);
+    const el = getAllComps().find(n=> n.dataset.id===id);
     if (el) selectComp(el);
     highlightRecapSelection();
   }
@@ -837,7 +842,7 @@
     });
   }
   function applyEdit(id, field, rawValue, baseValue){
-    const el = [...document.querySelectorAll('.comp')].find(n=> n.dataset.id===id);
+    const el = getAllComps().find(n=> n.dataset.id===id);
     if (!el) return;
 
     let w = el.offsetWidth, h = el.offsetHeight;
@@ -884,14 +889,13 @@
 
     selectComp(el);
     refreshRecap();
-    persistCurrentScreen();
+    persistCurrentScreen(); // salva modifiche nello schermo
   }
 
   // ===== Salva/Carica Progetto (multi-screen) =====
-  function getActiveScreen(){ return state.screens.find(s=> s.id===state.activeScreenId) || null; }
   function collectCurrentScreen(){
     const scr = getActiveScreen(); if(!scr) return;
-    const comps = [...document.querySelectorAll('.comp')].map(el=>{
+    const comps = getAllComps().map(el=>{
       const w = el.offsetWidth, h = el.offsetHeight;
       const tileW = parseInt(el.dataset.tileW||'1',10)||1;
       const tileH = parseInt(el.dataset.tileH||'1',10)||1;
@@ -914,7 +918,7 @@
   function collectProject(){
     persistCurrentScreen();
     return {
-      version: 5,
+      version: 4,
       name: (projectNameInput.value||'Progetto').trim(),
       defaults: {
         colorCount: parseInt(tbColorCount.value,10),
@@ -933,7 +937,7 @@
     a.href = url; a.download = `${safeName}.json`; a.click();
     URL.revokeObjectURL(url);
   }
-  function clearCanvas(){ [...document.querySelectorAll('.comp')].forEach(el=> el.remove()); state.selected = null; updateToolbarState(); refreshRecap(); }
+  function clearCanvas(){ getAllComps().forEach(el=> el.remove()); state.selected = null; updateToolbarState(); refreshRecap(); }
 
   function createCompFromData(c){
     const w = c.cols * c.tileW, h = c.rows * c.tileH;
@@ -960,11 +964,11 @@
   }
 
   function loadScreenIntoDOM(screenObj){
-    // canvas
+    // applica canvas
     applyCanvasSize(screenObj.canvas.w, screenObj.canvas.h);
     canvasWInput.value = String(screenObj.canvas.w);
     canvasHInput.value = String(screenObj.canvas.h);
-    // composizioni
+    // svuota composizioni e ricarica
     clearCanvas();
     (screenObj.compositions||[]).forEach(createCompFromData);
     refreshRecap();
@@ -992,4 +996,116 @@
           id: s.id || uid(),
           name: s.name || 'Schermo',
           canvas: { w: Math.max(1, parseInt(s.canvas?.w||1920,10)), h: Math.max(1, parseInt(s.canvas?.h||1080,10)) },
-          compositions: Array.isArray
+          compositions: Array.isArray(s.compositions) ? s.compositions : []
+        }))
+      : [{
+          id: uid(),
+          name: 'Schermo 1',
+          canvas: { w: 1920, h: 1080 },
+          compositions: []
+        }];
+
+    projectNameInput.value = obj.name || '';
+
+    if (!state.activeScreenId) state.activeScreenId = state.screens[0].id;
+    updateScreenSelect();
+    const cur = getActiveScreen();
+    loadScreenIntoDOM(cur);
+  }
+
+  saveBtn.addEventListener('click', saveProject);
+  loadFile.addEventListener('change', (e)=>{
+    const file = e.target.files?.[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      try { const obj = JSON.parse(String(ev.target?.result||'{}')); loadProjectFromObject(obj); }
+      catch(err){ alert('File non valido.'); }
+    };
+    reader.readAsText(file); e.target.value = '';
+  });
+
+  // ===== Schermi: select + nuovo =====
+  function getActiveScreen(){ return state.screens.find(s=> s.id===state.activeScreenId) || null; }
+  function updateScreenSelect(){
+    screenSelect.innerHTML = '';
+    state.screens.forEach(s=>{
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = `${s.name} (${s.canvas.w}×${s.canvas.h})`;
+      screenSelect.appendChild(opt);
+    });
+    if (!state.screens.find(s=> s.id===state.activeScreenId) && state.screens[0]) {
+      state.activeScreenId = state.screens[0].id;
+    }
+    screenSelect.value = state.activeScreenId || (state.screens[0]?.id || '');
+  }
+
+  screenSelect.addEventListener('change', ()=>{
+    const newId = screenSelect.value;
+    if (!newId || newId === state.activeScreenId) return;
+    // salva schermo corrente
+    persistCurrentScreen();
+    state.activeScreenId = newId;
+    // carica nuovo schermo
+    const scr = getActiveScreen(); if (scr) loadScreenIntoDOM(scr);
+  });
+
+  newScreenBtn.addEventListener('click', ()=>{
+    // salva corrente
+    persistCurrentScreen();
+    const baseW = getCanvas().w, baseH = getCanvas().h;
+    const name = prompt('Nome nuovo schermo:', `Schermo ${state.screens.length+1}`) || `Schermo ${state.screens.length+1}`;
+    const wIn = prompt('Larghezza (px):', String(baseW)) || String(baseW);
+    const hIn = prompt('Altezza (px):',   String(baseH)) || String(baseH);
+    const w = Math.max(1, parseInt(wIn,10) || baseW);
+    const h = Math.max(1, parseInt(hIn,10) || baseH);
+
+    const scr = { id: uid(), name, canvas:{w,h}, compositions:[] };
+    state.screens.push(scr);
+    state.activeScreenId = scr.id;
+    updateScreenSelect();
+    loadScreenIntoDOM(scr);
+  });
+
+  // ===== Utility per selezione recap / edit =====
+  function yElFix(e){ /* placeholder se servisse */ }
+
+  function selectById(id){
+    const el = getAllComps().find(n=> n.dataset.id===id);
+    if (el) selectComp(el);
+    highlightRecapSelection();
+  }
+
+  function highlightRecapSelection(){
+    const idSel = state.selected?.dataset.id;
+    recap.querySelectorAll('.recap-item').forEach(r=>{
+      r.classList.toggle('selected', r.dataset.id===idSel);
+    });
+  }
+
+  // ===== Aggiungi composizione =====
+  addCompBtn.addEventListener('click', ()=>{ addComposition(); persistCurrentScreen(); });
+
+  // ===== Interazioni canvas/viewport =====
+  screen.addEventListener('click', ()=>{ clearSelection(); });
+  new ResizeObserver(()=>fitToViewport()).observe(viewport);
+  window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
+
+  // ===== Boot =====
+  // progetto iniziale con 1 schermo
+  state.screens = [{
+    id: uid(),
+    name: 'Schermo 1',
+    canvas: { w:1920, h:1080 },
+    compositions: []
+  }];
+  state.activeScreenId = state.screens[0].id;
+  updateScreenSelect();
+  applyCanvasSize(1920,1080);
+  canvasWInput.value = '1920';
+  canvasHInput.value = '1080';
+  refreshRecap();
+  updateToolbarState();
+})();
+</script>
+</body>
+</html>
