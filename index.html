@@ -484,69 +484,121 @@
       window.addEventListener('touchend', end);
     };
 
-    const move = (e)=>{
-      if(!drag) return; e.preventDefault(); e.stopPropagation();
-      const p = getPos(e); const pg = screen.getBoundingClientRect();
-      const pointerWorldX = (p.x - pg.left) / state.scale;
-      const pointerWorldY = (p.y - pg.top)  / state.scale;
-      const w = el.offsetWidth, h = el.offsetHeight;
+const move = (e)=>{
+  if(!drag) return; 
+  e.preventDefault(); e.stopPropagation();
 
-      let nx = pointerWorldX - drag.offsetX;
-      let ny = pointerWorldY - drag.offsetY;
+  const p = getPos(e); 
+  const pg = screen.getBoundingClientRect();
+  const pointerWorldX = (p.x - pg.left) / state.scale;
+  const pointerWorldY = (p.y - pg.top)  / state.scale;
+  const w = el.offsetWidth, h = el.offsetHeight;
 
-      // SNAP ad altri rettangoli
-      const comps = [...document.querySelectorAll('.comp')].filter(n=>n!==el);
-      let bestDX = Infinity, bestNX = nx; let bestDY = Infinity, bestNY = ny;
-      const L = nx, R = nx + w, CX = nx + w/2;
-      const T = ny, B = ny + h, CY = ny + h/2;
+  let nx = pointerWorldX - drag.offsetX;
+  let ny = pointerWorldY - drag.offsetY;
 
-      const snapEdgeX = (nx, targetX, edge)=>{
-        if (edge==='L') return targetX;
-        if (edge==='R') return targetX - w;
-        if (edge==='C') return Math.round(targetX - w/2);
-        return nx;
-      };
-      const snapEdgeY = (ny, targetY, edge)=>{
-        if (edge==='T') return targetY;
-        if (edge==='B') return targetY - h;
-        if (edge==='C') return Math.round(targetY - h/2);
-        return ny;
-      };
+  // --- SNAP ad altri rettangoli (coerente: edge-edge e center-center)
+  const EDGE_THRESHOLD = 12;   // preferito
+  const GRID_THRESHOLD = 8;    // più morbido della griglia
 
-      for (const n of comps){
-        const left = parseFloat(n.style.left)||0;
-        const top  = parseFloat(n.style.top)||0;
-        const nw = n.offsetWidth, nh = n.offsetHeight;
-        const targetsX = [left, left+nw, left+nw/2];
-        const targetsY = [top, top+nh, top+nh/2];
-        for (const tx of targetsX){
-          const cands = [ ['L', Math.abs(L-tx)], ['R', Math.abs(R-tx)], ['C', Math.abs(CX-tx)] ];
-          for (const [edge,dist] of cands){ if (dist <= SNAP_THRESHOLD && dist < bestDX){ bestDX = dist; bestNX = snapEdgeX(nx, tx, edge); } }
-        }
-        for (const ty of targetsY){
-          const cands = [ ['T', Math.abs(T-ty)], ['B', Math.abs(B-ty)], ['C', Math.abs(CY-ty)] ];
-          for (const [edge,dist] of cands){ if (dist <= SNAP_THRESHOLD && dist < bestDY){ bestDY = dist; bestNY = snapEdgeY(ny, ty, edge); } }
-        }
+  const comps = [...document.querySelectorAll('.comp')].filter(n=>n!==el);
+
+  // coordinate del mobile
+  const Lm = nx, Rm = nx + w, Cm = nx + w/2;
+  const Tm = ny, Bm = ny + h, CmY = ny + h/2;
+
+  let snappedX = false, snappedY = false;
+  let bestDX = Infinity, bestNX = nx;
+  let bestDY = Infinity, bestNY = ny;
+
+  // helper: imposta nx per allineare/accostare l'asse X
+  const snapX = (curNx, targetX, what)=>{
+    // what: 'L=L', 'R=R', 'L=R', 'R=L', 'C=C'
+    switch(what){
+      case 'L=L': return targetX;                // sinistra a sinistra (allineamento)
+      case 'R=R': return targetX - w;            // destra a destra (allineamento)
+      case 'L=R': return targetX;                // sinistra del mobile accostata alla destra del target
+      case 'R=L': return targetX - w;            // destra del mobile accostata alla sinistra del target
+      case 'C=C': return Math.round(targetX - w/2); // centro a centro
+      default:    return curNx;
+    }
+  };
+  // helper: imposta ny per allineare/accostare l'asse Y
+  const snapY = (curNy, targetY, what)=>{
+    // what: 'T=T', 'B=B', 'T=B', 'B=T', 'C=C'
+    switch(what){
+      case 'T=T': return targetY;
+      case 'B=B': return targetY - h;
+      case 'T=B': return targetY;        // top mobile accostato a bottom target
+      case 'B=T': return targetY - h;    // bottom mobile accostato a top target
+      case 'C=C': return Math.round(targetY - h/2);
+      default:    return curNy;
+    }
+  };
+
+  for (const n of comps){
+    const left = parseFloat(n.style.left)||0;
+    const top  = parseFloat(n.style.top)||0;
+    const nw = n.offsetWidth, nh = n.offsetHeight;
+
+    const Lt = left, Rt = left+nw, Ct = left+nw/2;
+    const Tt = top,  Bt = top+nh,  CtY= top+nh/2;
+
+    // X: confronta solo coppie coerenti
+    const pairsX = [
+      ['L=L', Math.abs(Lm - Lt),  Lt],
+      ['R=R', Math.abs(Rm - Rt),  Rt],
+      ['L=R', Math.abs(Lm - Rt),  Rt],
+      ['R=L', Math.abs(Rm - Lt),  Lt],
+      ['C=C', Math.abs(Cm - Ct),  Ct],
+    ];
+    for (const [what, dist, tx] of pairsX){
+      if (dist <= EDGE_THRESHOLD && dist < bestDX){
+        bestDX = dist; bestNX = snapX(nx, tx, what); snappedX = true;
       }
-      nx = bestNX; ny = bestNY;
+    }
 
-      // SNAP alla griglia (tile)
-      const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
-      const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-      const nearestGX = Math.round(nx / tileW) * tileW;
-      const nearestGY = Math.round(ny / tileH) * tileH;
-      if (Math.abs(nx - nearestGX) <= SNAP_THRESHOLD) nx = nearestGX;
-      if (Math.abs(ny - nearestGY) <= SNAP_THRESHOLD) ny = nearestGY;
+    // Y: idem coerente
+    const pairsY = [
+      ['T=T', Math.abs(Tm - Tt),  Tt],
+      ['B=B', Math.abs(Bm - Bt),  Bt],
+      ['T=B', Math.abs(Tm - Bt),  Bt],
+      ['B=T', Math.abs(Bm - Tt),  Tt],
+      ['C=C', Math.abs(CmY - CtY), CtY],
+    ];
+    for (const [what, dist, ty] of pairsY){
+      if (dist <= EDGE_THRESHOLD && dist < bestDY){
+        bestDY = dist; bestNY = snapY(ny, ty, what); snappedY = true;
+      }
+    }
+  }
 
-      // clamp entro canvas
-      nx = Math.max(0, Math.min(state.canvas.w - w, nx));
-      ny = Math.max(0, Math.min(state.canvas.h - h, ny));
+  // applica snap rettangoli
+  nx = bestNX; ny = bestNY;
 
-      nx = Math.round(nx); ny = Math.round(ny);
-      el.style.left = nx + 'px';
-      el.style.top  = ny + 'px';
-      updateOffsetLabels(el);
-    };
+  // --- SNAP griglia (tile) SOLO se non abbiamo già snappato su quell'asse
+  const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
+  const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
+
+  if (!snappedX){
+    const gx = Math.round(nx / tileW) * tileW;
+    if (Math.abs(nx - gx) <= GRID_THRESHOLD) nx = gx;
+  }
+  if (!snappedY){
+    const gy = Math.round(ny / tileH) * tileH;
+    if (Math.abs(ny - gy) <= GRID_THRESHOLD) ny = gy;
+  }
+
+  // clamp entro canvas
+  nx = Math.max(0, Math.min(state.canvas.w - w, nx));
+  ny = Math.max(0, Math.min(state.canvas.h - h, ny));
+
+  nx = Math.round(nx); ny = Math.round(ny);
+  el.style.left = nx + 'px';
+  el.style.top  = ny + 'px';
+  updateOffsetLabels(el);
+};
+
 
     const end = ()=>{
       drag = null;
