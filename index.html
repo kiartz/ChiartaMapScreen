@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LEDWall Mapper – Snap & Pixel-Perfect + Palette</title>
+  <title>LEDWall Mapper – Snap & Pixel-Perfect + Palette in Toolbar</title>
   <style>
-    :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; }
+    :root { --bg:#0e0e10; --panel:#151519; --border:#272a2f; --ink:#e8eaed; --muted:#a0a6ad; --acc:#45b8ff; --warn:#ffb454; --tileLine:#9fd7ff; }
     * { box-sizing: border-box; }
     body { margin:0; background:var(--bg); color:var(--ink); font:14px system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
     header, footer { padding:8px 12px; background:#0b0c0f; position:sticky; top:0; z-index:5; border-bottom:1px solid var(--border); }
@@ -22,6 +22,7 @@
       background:#0c0d11; border:1px solid #1e2229; box-sizing:content-box;
       touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden;
     }
+    /* Griglia canvas 100px */
     #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
         linear-gradient(to right, #181c24 1px, transparent 1px),
@@ -33,10 +34,12 @@
       position:absolute; z-index:2; box-sizing:border-box;
       cursor:grab; touch-action:none; user-select:none;
       display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
-      /* Bordo interno */
+      /* Bordo interno 3px, sempre all'interno */
       box-shadow: inset 0 0 0 3px var(--acc);
-      /* La griglia + pattern vengono impostati via JS con background-image (3 layer) */
+      /* Il pattern (con le linee da 2px) viene impostato via JS: solo 1 layer url(...) */
       padding: 4px 8px;
+      background-repeat: repeat;
+      background-position: 0 0;
     }
     .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff; }
     .comp .name, .comp .size {
@@ -62,19 +65,17 @@
     label{display:block;font-size:11px;color:#cfd3d7;margin:0 0 3px}
     input,button,select{border-radius:8px;border:1px solid var(--border);background:#0f1115;color:var(--ink);padding:7px 8px;font-size:13px}
     input[type=text], select{width:100%}
-    input[type=color]{padding:0;border-radius:6px;border:1px solid #2b2f36;width:34px;height:28px;background:#0f1115;cursor:pointer}
     button{background:var(--acc);color:#001018;font-weight:700;cursor:pointer}
     button.secondary{ background:#0f1115; color:var(--ink) }
 
     .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
-    .gridCol{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-    .colorsRow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
     /* Toolbar sopra il canvas */
-    #toolbar { display:flex; gap:6px; margin-bottom:6px; align-items:center; flex-wrap:wrap; }
+    #toolbar { display:flex; gap:8px; margin-bottom:8px; align-items:center; flex-wrap:wrap; }
     #toolbar button.icon { background:none; border:1px solid #444; color:var(--ink); font-size:16px; padding:4px 6px; border-radius:6px; }
     #toolbar button.icon:hover { background:rgba(255,255,255,0.08); }
     #toolbar .spacer { flex:1; }
+    .divider { width:1px; height:26px; background:#2b2f36; }
 
     /* Inline canvas size editor (compatto) */
     .canvas-size { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
@@ -84,14 +85,12 @@
     .canvas-size .btns button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
     .canvas-size .btns button:hover { background:rgba(255,255,255,0.08); }
 
-    /* Project bar */
-    #projectBar { display:flex; gap:6px; align-items:center; }
-    #projectBar input { padding:6px 8px; font-size:13px; }
-    #projectBar button, #projectBar label.btn {
-      background:none; border:1px solid #444; border-radius:8px; padding:6px 8px; font-size:13px; cursor:pointer; color:var(--ink);
-    }
-    #projectBar button:hover, #projectBar label.btn:hover { background:rgba(255,255,255,0.08); }
-    #projectBar .grow { flex:1; min-width:0; }
+    /* Palette in toolbar */
+    .palette { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 8px; border-radius:8px; }
+    .palette select{ width:auto; padding:4px 6px; font-size:12px; }
+    .swatch { width:24px; height:22px; border-radius:6px; border:1px solid #2b2f36; overflow:hidden; position:relative; }
+    .swatch input[type=color]{ position:absolute; inset:0; opacity:0; cursor:pointer; }
+    .swatch .preview{ position:absolute; inset:0; border-radius:6px; }
 
     /* Recap */
     #recap { max-height:280px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
@@ -116,16 +115,16 @@
     <section id="left">
       <!-- Project Bar -->
       <div class="panel" style="padding:10px">
-        <div id="projectBar">
-          <input id="projectName" type="text" class="grow" placeholder="Nome progetto (es. MainStage)" />
+        <div id="projectBar" style="display:flex; gap:6px; align-items:center;">
+          <input id="projectName" type="text" style="flex:1" placeholder="Nome progetto (es. MainStage)" />
           <button id="saveBtn" title="Salva (JSON)">💾</button>
-          <label for="loadFile" class="btn" title="Carica (JSON)">📂</label>
+          <label for="loadFile" class="secondary" style="padding:6px 8px; cursor:pointer" title="Carica (JSON)">📂</label>
           <input id="loadFile" type="file" accept=".json,application/json" style="display:none">
         </div>
         <div style="margin-top:6px"><small>I campi accettano formule: <code>*2</code>, <code>+64</code>, <code>128*3</code>…</small></div>
       </div>
 
-      <!-- Nuova composizione (compatto) + Palette -->
+      <!-- Nuova composizione (compatto) -->
       <div class="panel" style="padding:10px">
         <div style="font-weight:700; margin-bottom:6px">Nuova composizione</div>
         <div>
@@ -140,31 +139,6 @@
           <div><label for="startX">X</label><input id="startX" type="text" value="0" placeholder="0, +128"></div>
           <div><label for="startY">Y</label><input id="startY" type="text" value="0" placeholder="0, +128"></div>
         </div>
-
-        <div style="margin-top:10px">
-          <div class="gridCol">
-            <div>
-              <label for="colorCount">Colori (1–4)</label>
-              <select id="colorCount">
-                <option value="1">1</option>
-                <option value="2" selected>2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-              </select>
-            </div>
-            <div>
-              <label>Palette</label>
-              <div class="colorsRow">
-                <input type="color" id="col1" value="#3b82f6" title="Colore 1">
-                <input type="color" id="col2" value="#10b981" title="Colore 2">
-                <input type="color" id="col3" value="#f97316" title="Colore 3" style="display:none">
-                <input type="color" id="col4" value="#ec4899" title="Colore 4" style="display:none">
-              </div>
-            </div>
-          </div>
-          <small style="color:#9aa4af">Seleziona quante tinte usare. Le caselle mostrano il picker di colore.</small>
-        </div>
-
         <button id="addComp" style="margin-top:10px; width:100%">Aggiungi</button>
       </div>
 
@@ -181,7 +155,38 @@
           <button id="renameBtn" class="icon" title="Rinomina">✎</button>
           <button id="duplicateBtn" class="icon" title="Duplica">⧉</button>
           <button id="deleteBtn" class="icon" title="Elimina">🗑️</button>
+
+          <span class="divider"></span>
+
+          <!-- Palette controls (valide per selezione; se nulla selezionato = default per nuove) -->
+          <div class="palette" title="Palette mattonelle (1–4 colori)">
+            <span style="font-size:12px;color:#a8b0bb">Colori</span>
+            <select id="tbColorCount" aria-label="Numero colori">
+              <option value="1">1</option>
+              <option value="2" selected>2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+            <div class="swatch" id="sw1" title="Colore 1">
+              <div class="preview" id="sw1p" style="background:#3b82f6"></div>
+              <input type="color" id="tbCol1" value="#3b82f6">
+            </div>
+            <div class="swatch" id="sw2" title="Colore 2">
+              <div class="preview" id="sw2p" style="background:#10b981"></div>
+              <input type="color" id="tbCol2" value="#10b981">
+            </div>
+            <div class="swatch" id="sw3" title="Colore 3" style="display:none">
+              <div class="preview" id="sw3p" style="background:#f97316"></div>
+              <input type="color" id="tbCol3" value="#f97316">
+            </div>
+            <div class="swatch" id="sw4" title="Colore 4" style="display:none">
+              <div class="preview" id="sw4p" style="background:#ec4899"></div>
+              <input type="color" id="tbCol4" value="#ec4899">
+            </div>
+          </div>
+
           <div class="spacer"></div>
+
           <div class="canvas-size" title="Dimensione canvas (formule supportate)">
             <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2" aria-label="Canvas width">
             <span class="x">×</span>
@@ -217,7 +222,7 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Drag fluido • Snap morbido • Bordi interni 3px pixel-perfect • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1-4 colori a scacchiera.
+      Drag fluido • Snap morbido • Bordi interni 3px • Linee mattonelle 2px luminose integrate nel pattern • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1–4 colori in toolbar.
     </div>
   </footer>
 
@@ -240,11 +245,15 @@
   const uid = ()=> Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   // ===== Stato =====
-  const state = { canvas: { w:1920, h:1080 }, scale: 1, selected: null,
+  const state = {
+    canvas: { w:1920, h:1080 },
+    scale: 1,
+    selected: null,
     defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'] }
   };
   const SNAP_THRESHOLD = 12;
   const MIN_OFFSET_FONT = 10;
+  const TILE_LINE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--tileLine').trim() || '#9fd7ff';
 
   // ===== DOM =====
   const viewport = document.getElementById('viewport');
@@ -262,11 +271,6 @@
   const tileHInput = document.getElementById('tileH');
   const startXInput = document.getElementById('startX');
   const startYInput = document.getElementById('startY');
-  const colorCountSel = document.getElementById('colorCount');
-  const col1 = document.getElementById('col1');
-  const col2 = document.getElementById('col2');
-  const col3 = document.getElementById('col3');
-  const col4 = document.getElementById('col4');
   const addCompBtn = document.getElementById('addComp');
 
   const renameBtn = document.getElementById('renameBtn');
@@ -282,6 +286,14 @@
   const applyCanvasBtn = document.getElementById('applyCanvas');
   const fitBtn = document.getElementById('fit');
 
+  // Palette (toolbar)
+  const tbColorCount = document.getElementById('tbColorCount');
+  const tbCol1 = document.getElementById('tbCol1'), tbCol2 = document.getElementById('tbCol2'),
+        tbCol3 = document.getElementById('tbCol3'), tbCol4 = document.getElementById('tbCol4');
+  const sw1p = document.getElementById('sw1p'), sw2p = document.getElementById('sw2p'),
+        sw3p = document.getElementById('sw3p'), sw4p = document.getElementById('sw4p');
+  const sw3 = document.getElementById('sw3'), sw4 = document.getElementById('sw4');
+
   const recap = document.getElementById('recap');
 
   // ===== Canvas sizing =====
@@ -289,7 +301,7 @@
     state.canvas.w = w; state.canvas.h = h;
     screen.style.width = px(w); screen.style.height = px(h);
     fitToViewport();
-    // Clamp e refresh offset
+    // Clamp composizioni
     document.querySelectorAll('.comp').forEach(el=>{
       let x = Math.round(parseFloat(el.style.left)||0);
       let y = Math.round(parseFloat(el.style.top)||0);
@@ -314,11 +326,14 @@
     state.selected = el;
     if (state.selected) {
       state.selected.classList.add('selected');
-      // carica palette nel pannello
-      colorCountSel.value = state.selected.dataset.colorCount || String(state.defaults.colorCount);
+      // sincronizza palette toolbar
+      const n = parseInt(state.selected.dataset.colorCount||state.defaults.colorCount,10);
+      tbColorCount.value = String(n);
       const cols = getCompColors(state.selected);
-      [col1,col2,col3,col4].forEach((inp, i)=> inp.value = cols[i] || state.defaults.colors[i]);
-      updateColorPickersVisibility();
+      const arr = [tbCol1,tbCol2,tbCol3,tbCol4];
+      const prev = [sw1p,sw2p,sw3p,sw4p];
+      for(let i=0;i<4;i++){ const v = cols[i] || state.defaults.colors[i]; arr[i].value = v; prev[i].style.background = v; }
+      updateToolbarColorVisibility();
     }
     updateToolbarState();
     highlightRecapSelection();
@@ -374,7 +389,7 @@
     refreshRecap();
   }
 
-  // ===== Pattern a scacchiera (1–4 colori) =====
+  // ===== Pattern a scacchiera (1–4 colori) con linee da 2px =====
   function getCompColors(el){
     const count = parseInt(el?.dataset.colorCount || state.defaults.colorCount, 10);
     const arr = [
@@ -403,26 +418,37 @@
     c.width = W; c.height = H;
     const ctx = c.getContext('2d');
 
+    // colore linea (2px totali tra mattonelle: 1px per ciascun lato)
+    ctx.imageSmoothingEnabled = false;
+
     for (let r=0; r<pattRows; r++){
       for (let q=0; q<pattCols; q++){
         let color = cols[0];
         if (n===1){
           color = cols[0];
         } else if (n===2){
-          // 2x2: [c1,c2; c2,c1]
           color = ( (r+q) % 2 === 0 ) ? cols[0] : cols[1];
         } else if (n===3){
-          // 3x3: (i+j)%3
           color = cols[(r+q)%3];
         } else if (n===4){
-          // 2x2: [c1,c2; c3,c4]
           if (r===0 && q===0) color = cols[0];
           else if (r===0 && q===1) color = cols[1];
           else if (r===1 && q===0) color = cols[2];
           else color = cols[3];
         }
-        ctx.fillStyle = color;
-        ctx.fillRect(q*tileW, r*tileH, tileW, tileH);
+
+        const x = q*tileW, y = r*tileH, w = tileW, h = tileH;
+
+        // 1) riempi l'intero tile con il colore linea
+        ctx.fillStyle = TILE_LINE_COLOR;
+        ctx.fillRect(x, y, w, h);
+
+        // 2) riempi l'area interna (w-2,h-2) con il colore della mattonella
+        const iw = Math.max(0, w-2), ih = Math.max(0, h-2);
+        if (iw>0 && ih>0){
+          ctx.fillStyle = color;
+          ctx.fillRect(x+1, y+1, iw, ih);
+        }
       }
     }
     return { url: c.toDataURL(), pattW: W, pattH: H };
@@ -433,13 +459,8 @@
     const tileH = parseInt(el.dataset.tileH||'1',10)||1;
     const colors = getCompColors(el);
     const { url, pattW, pattH } = makePatternDataURL(colors, tileW, tileH);
-
-    const gridX = 'linear-gradient(to right, rgba(69,184,255,0.30) 1px, transparent 1px)';
-    const gridY = 'linear-gradient(to bottom, rgba(69,184,255,0.30) 1px, transparent 1px)';
-    el.style.backgroundImage = `${gridX}, ${gridY}, url("${url}")`;
-    el.style.backgroundSize  = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px, ${pattW}px ${pattH}px`;
-    el.style.backgroundPosition = `0 0, 0 0, 0 0`;
-    el.style.backgroundRepeat = `repeat, repeat, repeat`;
+    el.style.backgroundImage = `url("${url}")`;
+    el.style.backgroundSize  = `${pattW}px ${pattH}px`;
   }
 
   // ===== Drag + Snap =====
@@ -559,21 +580,15 @@
     el.dataset.id = uid();
     el.style.width = px(w);
     el.style.height = px(h);
-
-    // Palette (default o pannello corrente)
-    const count = parseInt(colorCountSel.value, 10);
-    const colors = [
-      col1.value || state.defaults.colors[0],
-      col2.value || state.defaults.colors[1],
-      col3.value || state.defaults.colors[2],
-      col4.value || state.defaults.colors[3],
-    ];
-    el.dataset.colorCount = String(count);
-    el.dataset.c1 = colors[0]; el.dataset.c2 = colors[1]; el.dataset.c3 = colors[2]; el.dataset.c4 = colors[3];
-
-    el.style.backgroundSize = `${tileW}px ${tileH}px, ${tileW}px ${tileH}px`; // completato da applyCompBackground
     el.dataset.tileW = String(tileW);
     el.dataset.tileH = String(tileH);
+
+    // palette dai defaults correnti di toolbar (se nulla selezionato)
+    el.dataset.colorCount = tbColorCount.value;
+    el.dataset.c1 = tbCol1.value;
+    el.dataset.c2 = tbCol2.value;
+    el.dataset.c3 = tbCol3.value;
+    el.dataset.c4 = tbCol4.value;
 
     const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
     const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
@@ -597,7 +612,7 @@
   const renameClose= ()=>{ document.getElementById('renameModal').style.display='none'; };
   const renameSaveFn = ()=>{ if(!state.selected) return; const v=(renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent=v; fitLabels(state.selected); refreshRecap(); } renameClose(); };
 
-  document.getElementById('renameBtn').addEventListener('click', renameOpen);
+  renameBtn.addEventListener('click', renameOpen);
   renameCancel.addEventListener('click', renameClose);
   renameSave.addEventListener('click', renameSaveFn);
   document.getElementById('renameModal').addEventListener('click', (e)=>{ if(e.target.id==='renameModal') renameClose(); });
@@ -635,7 +650,7 @@
     let ny = (parseFloat(src.style.top)||0) + 24;
     nx = Math.min(state.canvas.w - w, Math.max(0, nx));
     ny = Math.min(state.canvas.h - h, Math.max(0, ny));
-    el.style.left = px(nx); el.style.top = px(ny);
+    el.style.left = px(nx); el.style.top  = px(ny);
 
     screen.appendChild(el);
     makeDraggable(el);
@@ -653,34 +668,40 @@
   });
 
   // ===== Canvas controls =====
-  applyCanvasBtn.addEventListener('click', ()=>{
+  function applyCanvasFromInputs(){
     const newW = Math.max(1, evalIntExpression(canvasWInput.value, state.canvas.w) || state.canvas.w);
     const newH = Math.max(1, evalIntExpression(canvasHInput.value, state.canvas.h) || state.canvas.h);
     applyCanvasSize(newW, newH);
     canvasWInput.value = String(newW);
     canvasHInput.value = String(newH);
-  });
+  }
+  document.getElementById('applyCanvas').addEventListener('click', applyCanvasFromInputs);
   fitBtn.addEventListener('click', fitToViewport);
 
-  // ===== Pannello Palette (visibilità e change) =====
-  function updateColorPickersVisibility(){
-    const n = parseInt(colorCountSel.value, 10);
-    col1.style.display = n>=1 ? '' : 'none';
-    col2.style.display = n>=2 ? '' : 'none';
-    col3.style.display = n>=3 ? '' : 'none';
-    col4.style.display = n>=4 ? '' : 'none';
+  // ===== Toolbar palette: visibilità e change =====
+  function updateToolbarColorVisibility(){
+    const n = parseInt(tbColorCount.value,10);
+    sw3.style.display = n>=3 ? '' : 'none';
+    sw4.style.display = n>=4 ? '' : 'none';
   }
-  colorCountSel.addEventListener('change', ()=>{
-    updateColorPickersVisibility();
+  updateToolbarColorVisibility();
+
+  // Cambi numero colori
+  tbColorCount.addEventListener('change', ()=>{
+    updateToolbarColorVisibility();
     if (state.selected){
-      state.selected.dataset.colorCount = colorCountSel.value;
+      state.selected.dataset.colorCount = tbColorCount.value;
       applyCompBackground(state.selected);
     } else {
-      state.defaults.colorCount = parseInt(colorCountSel.value,10);
+      state.defaults.colorCount = parseInt(tbColorCount.value,10);
     }
   });
-  [col1,col2,col3,col4].forEach((inp, i)=>{
+
+  // Cambi colore
+  [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp, i)=>{
+    const prev = [sw1p,sw2p,sw3p,sw4p][i];
     inp.addEventListener('input', ()=>{
+      prev.style.background = inp.value;
       if (state.selected){
         state.selected.dataset['c'+(i+1)] = inp.value;
         applyCompBackground(state.selected);
@@ -689,7 +710,6 @@
       }
     });
   });
-  updateColorPickersVisibility();
 
   // ===== Aggiungi composizione =====
   addCompBtn.addEventListener('click', addComposition);
@@ -813,7 +833,6 @@
       case 'y': y = Math.max(0, v); break;
     }
 
-    // Clamp a canvas
     w = Math.max(1, Math.min(state.canvas.w, w));
     h = Math.max(1, Math.min(state.canvas.h, h));
     x = Math.min(state.canvas.w - w, Math.max(0, x));
@@ -855,11 +874,14 @@
     });
 
     return {
-      version: 2,
+      version: 3,
       name: (projectNameInput.value||'Progetto').trim(),
       canvas: { w: state.canvas.w, h: state.canvas.h },
       compositions: comps,
-      defaults: state.defaults
+      defaults: {
+        colorCount: parseInt(tbColorCount.value,10),
+        colors: [tbCol1.value, tbCol2.value, tbCol3.value, tbCol4.value]
+      }
     };
   }
   function saveProject(){
@@ -880,7 +902,6 @@
     el.style.width = px(w); el.style.height = px(h);
     el.dataset.tileW = String(c.tileW); el.dataset.tileH = String(c.tileH);
 
-    // palette
     el.dataset.colorCount = String(c.colorCount ?? 2);
     const arr = c.colors || [];
     el.dataset.c1 = arr[0] || state.defaults.colors[0];
@@ -904,15 +925,18 @@
     applyCanvasSize(w,h); canvasWInput.value = String(w); canvasHInput.value = String(h);
     projectNameInput.value = obj.name || '';
 
-    // defaults palette
+    // defaults palette (toolbar)
     if (obj.defaults){
-      state.defaults.colorCount = Math.max(1, Math.min(4, parseInt(obj.defaults.colorCount||2,10)));
-      if (Array.isArray(obj.defaults.colors)){
-        for (let i=0;i<4;i++) if (obj.defaults.colors[i]) state.defaults.colors[i] = obj.defaults.colors[i];
-      }
-      colorCountSel.value = String(state.defaults.colorCount);
-      [col1,col2,col3,col4].forEach((inp,i)=> inp.value = state.defaults.colors[i]);
-      updateColorPickersVisibility();
+      const n = Math.max(1, Math.min(4, parseInt(obj.defaults.colorCount||2,10)));
+      tbColorCount.value = String(n);
+      updateToolbarColorVisibility();
+      const arr = obj.defaults.colors || [];
+      [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp,i)=>{
+        if (arr[i]) inp.value = arr[i];
+        [sw1p,sw2p,sw3p,sw4p][i].style.background = inp.value;
+      });
+      state.defaults.colorCount = n;
+      state.defaults.colors = [tbCol1.value, tbCol2.value, tbCol3.value, tbCol4.value];
     }
 
     clearCanvas();
@@ -932,7 +956,7 @@
 
   // ===== Boot =====
   applyCanvasSize(1920, 1080);
-  // demo iniziale
+  // Demo iniziale
   addComposition();
   refreshRecap();
   updateToolbarState();
