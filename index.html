@@ -38,7 +38,9 @@
       background-repeat: repeat;
       background-position: 0 0;
     }
-    .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff; }
+    .comp.selected { 
+      box-shadow: inset 0 0 0 5px #ffffff; 
+    }
     .comp .name {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; pointer-events: none;
       color:#eef6ff; text-shadow:0 1px 2px #000;
@@ -62,7 +64,6 @@
       max-width:55%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       line-height:1; pointer-events:none;
     }
-    /* MODIFICA: Spostato offset più in basso */
     .comp .offset  { top:32px; left:3px; }
     .comp .offsetBR{ bottom:3px; right:3px; }
 
@@ -83,25 +84,20 @@
     .divider { width:1px; height:26px; background:#2b2f36; }
 
     /* Stili vari */
-    .canvas-size { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
+    .canvas-size, .screen-ctrl, .palette { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 8px; border-radius:8px; }
     .canvas-size input { width:84px; padding:5px 6px; font-size:12px; }
     .canvas-size .x { color:#88909a; font-size:12px; }
     .canvas-size .btns { display:flex; gap:4px; }
     .canvas-size .btns button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
     .canvas-size .btns button:hover { background:rgba(255,255,255,0.08); }
-    .screen-ctrl { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
-    .screen-ctrl select { width:auto; padding:5px 6px; font-size:12px; }
-    .screen-ctrl button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
-    .screen-ctrl button:hover { background:rgba(255,255,255,0.08); }
-    .palette { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 8px; border-radius:8px; }
-    .palette select{ width:auto; padding:4px 6px; font-size:12px; }
+    .screen-ctrl select, .palette select { width:auto; padding:4px 6px; font-size:12px; }
     .swatch { width:24px; height:22px; border-radius:6px; border:1px solid #2b2f36; overflow:hidden; position:relative; }
     .swatch input[type=color]{ position:absolute; inset:0; opacity:0; cursor:pointer; }
     .swatch .preview{ position:absolute; inset:0; border-radius:6px; }
 
-    /* Stile per il controllo font size */
-    #fontSizeContainer { position: relative; }
-    #fontSizePopup {
+    /* Stili per i Popup della Toolbar */
+    .popup-container { position: relative; }
+    .popup {
       display: none;
       position: absolute;
       top: calc(100% + 5px);
@@ -112,34 +108,38 @@
       border-radius: 8px;
       padding: 8px 12px;
       z-index: 10;
-      width: 250px;
     }
-    #fontSizePopup.visible { display: block; }
+    .popup.visible { display: block; }
+
+    #fontSizePopup { width: 250px; }
     #fontSizePopup .slider-row { display:flex; align-items:center; gap:8px; margin-bottom: 4px; }
     #fontSizePopup .slider-row:last-child { margin-bottom: 0; }
-    #fontSizePopup .slider-row > span:first-child { 
-      width: 32px; 
-      font-size: 11px; 
-      color: var(--muted);
-      font-weight: 600;
-    }
+    #fontSizePopup .slider-row > span:first-child { width: 32px; font-size: 11px; color: var(--muted); font-weight: 600; }
+    
     .editable-value {
-      font-size: 12px;
-      color: var(--ink);
-      min-width: 40px;
-      text-align: right;
-      cursor: text;
-      border-bottom: 1px dashed transparent;
-      padding: 2px 4px;
-      border-radius: 4px;
+      font-size: 12px; color: var(--ink); min-width: 40px; text-align: right; cursor: text;
+      border-bottom: 1px dashed transparent; padding: 2px 4px; border-radius: 4px;
     }
-    .editable-value:hover {
-      border-bottom-color: var(--muted);
+    .editable-value:hover { border-bottom-color: var(--muted); }
+    .editable-value:focus { outline: 1px solid var(--acc); background: #000; border-bottom-color: transparent; }
+
+    /* Stili per il popup Visibilità */
+    #visibilityPopup { width: 200px; }
+    .visibility-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .visibility-row:last-child { margin-bottom: 0; }
+    .visibility-row span { font-size: 13px; }
+    .visibility-row button { font-size: 11px; padding: 3px 8px; background: #333; color: #ccc; font-weight: 600; border-color: #444; }
+    .visibility-row button.active { background: var(--acc); color: #000; }
+
+    /* Classi per nascondere gli elementi */
+    body.hide-names .comp .name,
+    body.hide-sizes .comp .size,
+    body.hide-tile-labels .comp .tile-label {
+      display: none;
     }
-    .editable-value:focus {
-      outline: 1px solid var(--acc);
-      background: #000;
-      border-bottom-color: transparent;
+    body.hide-offset-tl .comp .offset,
+    body.hide-offset-br .comp .offsetBR {
+      display: none !important;
     }
 
     /* Stili Recap e Modal */
@@ -167,7 +167,7 @@
     }
   </style>
 </head>
-<body>
+<body class="">
   <header>
     <div style="font-weight:800">LEDWall Mapper – Multi-Screen, Snap & Pixel-Perfect</div>
   </header>
@@ -231,9 +231,9 @@
             <div class="swatch" id="swName" title="Colore testo"><div class="preview" id="swNamePrev" style="background:#ffffff"></div><input type="color" id="tbNameColor" value="#ffffff"></div>
           </div>
           
-          <div id="fontSizeContainer">
+          <div class="popup-container">
             <button id="toggleFontSizeBtn" class="icon" title="Dimensione e Posizione Testo">Aa</button>
-            <div id="fontSizePopup">
+            <div id="fontSizePopup" class="popup">
               <div class="slider-row">
                 <span>Size</span>
                 <input type="range" id="fontSizeSlider" min="8" max="160" value="24" step="1">
@@ -249,6 +249,18 @@
                 <input type="range" id="nameOffsetYSlider" min="-1000" max="1000" value="0" step="1">
                 <span id="nameOffsetYValue" class="editable-value" contenteditable="true">0px</span>
               </div>
+            </div>
+          </div>
+
+          <div class="popup-container">
+            <button id="toggleVisibilityBtn" class="icon" title="Visibilità Elementi">👁️</button>
+            <div id="visibilityPopup" class="popup">
+              <div class="visibility-row"><span>Nome</span><button data-toggle="name">ON</button></div>
+              <div class="visibility-row"><span>Numeri Tile</span><button data-toggle="tileLabels">ON</button></div>
+              <div class="visibility-row"><span>Dimensione (px)</span><button data-toggle="size">ON</button></div>
+              <div class="visibility-row"><span>Offset TL</span><button data-toggle="offsetTL">ON</button></div>
+              <div class="visibility-row"><span>Offset BR</span><button data-toggle="offsetBR">ON</button></div>
+              <div class="visibility-row"><span>Bordini Interni</span><button data-toggle="tileLines">ON</button></div>
             </div>
           </div>
 
@@ -311,13 +323,24 @@
   const uid = ()=> Math.random().toString(36).slice(2) + Date.now().toString(36);
 
   // Stato
-  const state = { scale: 1, selected: null, defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'], nameColor:'#ffffff' }, screens: [], activeScreenId: null };
+  const state = { 
+    scale: 1, 
+    selected: null, 
+    defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'], nameColor:'#ffffff' }, 
+    screens: [], 
+    activeScreenId: null,
+    visibility: { name: true, tileLabels: true, size: true, offsetTL: true, offsetBR: true, tileLines: true }
+  };
+  window.state = state;
+  window.collectProject = collectProject;
+  
   const SNAP_THRESHOLD_EDGE = 12;
   const SNAP_THRESHOLD_GRID = 8;
   const MIN_OFFSET_FONT = 10;
   const TILE_LINE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--tileLine').trim() || '#9fd7ff';
 
   // DOM
+  const mainBody = document.body;
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
@@ -352,7 +375,7 @@
   const recap = document.getElementById('recap');
   const screenSelect = document.getElementById('screenSelect');
   const newScreenBtn = document.getElementById('newScreenBtn');
-  // DOM per il popup
+  // DOM per i popup
   const toggleFontSizeBtn = document.getElementById('toggleFontSizeBtn');
   const fontSizePopup = document.getElementById('fontSizePopup');
   const fontSizeSlider = document.getElementById('fontSizeSlider');
@@ -361,6 +384,8 @@
   const nameOffsetXValue = document.getElementById('nameOffsetXValue');
   const nameOffsetYSlider = document.getElementById('nameOffsetYSlider');
   const nameOffsetYValue = document.getElementById('nameOffsetYValue');
+  const toggleVisibilityBtn = document.getElementById('toggleVisibilityBtn');
+  const visibilityPopup = document.getElementById('visibilityPopup');
 
   // Funzioni
   function applyCanvasSize(w,h){ screen.style.width = px(w); screen.style.height = px(h); fitToViewport(); clampAllComps(); }
@@ -447,7 +472,7 @@
     if (!nameEl) return;
     const x = el.dataset.nameOffsetX || 0;
     const yBase = (el.dataset.nameOffsetY || 0) * -1;
-    const nudge = -4; // MODIFICA: Sposta leggermente in su per centrare meglio
+    const nudge = -4; 
     nameEl.style.transform = `translate(${x}px, ${yBase + nudge}px)`;
   }
 
@@ -502,9 +527,22 @@
         else if (n===3) color = colors[(r+q)%3];
         else color = colors[r*2 + q];
         const x = q*tileW, y = r*tileH;
-        ctx.fillStyle = TILE_LINE_COLOR; ctx.fillRect(x, y, tileW, tileH);
-        const iw = Math.max(0, tileW-2), ih = Math.max(0, tileH-2);
-        if (iw>0 && ih>0){ ctx.fillStyle = color; ctx.fillRect(x+1, y+1, iw, ih); }
+        
+        const borderWidth = state.visibility.tileLines ? 1 : 0;
+        if (borderWidth > 0) {
+          ctx.fillStyle = TILE_LINE_COLOR; 
+          ctx.fillRect(x, y, tileW, tileH);
+        }
+        
+        const iw = tileW - (borderWidth * 2);
+        const ih = tileH - (borderWidth * 2);
+        if (iw > 0 && ih > 0) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x + borderWidth, y + borderWidth, iw, ih);
+        } else {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, tileW, tileH);
+        }
       }
     }
     return { url: c.toDataURL(), pattW: W, pattH: H };
@@ -514,6 +552,10 @@
     const { url, pattW, pattH } = makePatternDataURL(getCompColors(el), tileW, tileH);
     el.style.backgroundImage = `url("${url}")`;
     el.style.backgroundSize  = `${pattW}px ${pattH}px`;
+  }
+  
+  function refreshAllCompBackgrounds() {
+    getAllComps().forEach(el => applyCompBackground(el));
   }
 
   function makeDraggable(el){
@@ -567,26 +609,45 @@
     el.querySelector('.name').style.color = color;
     el.querySelector('.size').style.color = color;
   }
+
+  // MODIFICA: Ripristino creazione elementi originale e più stabile
   function addComposition(){
     const scr = getActiveScreen(); if (!scr) return;
     const name = (compNameInput.value || `Composizione`).trim();
-    const cols = Math.max(1, evalIntExpression(colsInput.value, 8) || 8);
-    const rows = Math.max(1, evalIntExpression(rowsInput.value, 4) || 4);
-    const tileW = Math.max(1, evalIntExpression(tileWInput.value, 128) || 128);
-    const tileH = Math.max(1, evalIntExpression(tileHInput.value, 128) || 128);
-    let nx = Math.max(0, evalIntExpression(startXInput.value, 0) || 0);
-    let ny = Math.max(0, evalIntExpression(startYInput.value, 0) || 0);
-    const w = cols*tileW, h = rows*tileH;
-    const el = document.createElement('div'); el.className = 'comp';
-    Object.assign(el.dataset, {id:uid(), tileW, tileH, colorCount:tbColorCount.value, c1:tbCol1.value, c2:tbCol2.value, c3:tbCol3.value, c4:tbCol4.value});
-    el.style.cssText = `width:${px(w)}; height:${px(h)};`;
-    el.innerHTML = `<div class="offset"></div><div class="offsetBR"></div><div class="name">${name}</div><div class="size">${w}×${h}px</div>`;
+    const cols  = Math.max(1, evalIntExpression(colsInput.value,  8) ?? 8);
+    const rows  = Math.max(1, evalIntExpression(rowsInput.value,  4) ?? 4);
+    const tileW = Math.max(1, evalIntExpression(tileWInput.value, 128)   ?? 128);
+    const tileH = Math.max(1, evalIntExpression(tileHInput.value, 128)   ?? 128);
+    let   nx    = Math.max(0, evalIntExpression(startXInput.value, 0)  ?? 0);
+    let   ny    = Math.max(0, evalIntExpression(startYInput.value, 0)  ?? 0);
+    const w = cols * tileW;
+    const h = rows * tileH;
+    const el = document.createElement('div');
+    el.className = 'comp';
+    el.dataset.id = uid();
+    el.style.width = px(w);
+    el.style.height = px(h);
+    el.dataset.tileW = String(tileW);
+    el.dataset.tileH = String(tileH);
+    el.dataset.colorCount = tbColorCount.value;
+    el.dataset.c1 = tbCol1.value;
+    el.dataset.c2 = tbCol2.value;
+    el.dataset.c3 = tbCol3.value;
+    el.dataset.c4 = tbCol4.value;
+    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
+    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
+    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
+    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
     setNameColor(el, tbNameColor.value);
     const {w:cw, h:ch} = scr.canvas;
-    el.style.left = px(Math.min(cw - w, nx)); el.style.top  = px(Math.min(ch - h, ny));
+    el.style.left = px(Math.min(cw - w, nx));
+    el.style.top  = px(Math.min(ch - h, ny));
     screen.appendChild(el);
     renderTileLabels(el, cols, rows, tileW, tileH);
-    makeDraggable(el); applyCompBackground(el); updateOffsetLabels(el); applyNameTransform(el);
+    makeDraggable(el);
+    applyCompBackground(el);
+    updateOffsetLabels(el);
+    applyNameTransform(el);
     selectComp(el);
   }
 
@@ -604,18 +665,26 @@
     const {offsetWidth:w, offsetHeight:h, dataset} = src;
     const tileW = parseInt(dataset.tileW,10), tileH = parseInt(dataset.tileH,10);
     const cols = Math.round(w/tileW), rows = Math.round(h/tileH);
-    const el = document.createElement('div'); el.className = 'comp';
+    const el = document.createElement('div');
+    el.className = 'comp';
     Object.assign(el.dataset, {...dataset, id:uid()});
-    el.style.cssText = `width:${px(w)}; height:${px(h)};`;
+    el.style.width = px(w);
+    el.style.height = px(h);
     const name = (src.querySelector('.name').textContent || 'Composizione') + ' Copy';
-    el.innerHTML = `<div class="offset"></div><div class="offsetBR"></div><div class="name">${name}</div><div class="size">${w}×${h}px</div>`;
+    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
+    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
+    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
+    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
     setNameColor(el, src.dataset.nameColor);
     const {w:cw, h:ch} = getCanvas();
     el.style.left = px(Math.min(cw - w, Math.max(0, (parseFloat(src.style.left)||0) + 24)));
     el.style.top  = px(Math.min(ch - h, Math.max(0, (parseFloat(src.style.top)||0) + 24)));
     screen.appendChild(el);
     renderTileLabels(el, cols, rows, tileW, tileH);
-    makeDraggable(el); applyCompBackground(el); updateOffsetLabels(el); applyNameTransform(el);
+    makeDraggable(el);
+    applyCompBackground(el);
+    updateOffsetLabels(el);
+    applyNameTransform(el);
     selectComp(el);
   });
   delBtn.addEventListener('click', ()=>{
@@ -797,7 +866,25 @@
     const scr = getActiveScreen(); if(!scr) return;
     scr.compositions = getAllComps().map(el=>{
       const {offsetWidth:w, offsetHeight:h, dataset} = el;
-      return { id:dataset.id, name:el.querySelector('.name').textContent||'', cols:Math.round(w/dataset.tileW), rows:Math.round(h/dataset.tileH), tileW:parseInt(dataset.tileW), tileH:parseInt(dataset.tileH), x:Math.round(parseFloat(el.style.left)||0), y:Math.round(parseFloat(el.style.top)||0), colorCount:parseInt(dataset.colorCount), colors:[dataset.c1,dataset.c2,dataset.c3,dataset.c4], nameColor:dataset.nameColor, nameFontSize:dataset.nameFontSize, nameOffsetX: dataset.nameOffsetX, nameOffsetY: dataset.nameOffsetY };
+      const nameEl = el.querySelector('.name');
+      const finalNameFontSize = dataset.nameFontSize || Math.round(parseFloat(window.getComputedStyle(nameEl).fontSize));
+
+      return { 
+        id:dataset.id, 
+        name: nameEl.textContent||'', 
+        cols:Math.round(w/dataset.tileW), 
+        rows:Math.round(h/dataset.tileH), 
+        tileW:parseInt(dataset.tileW), 
+        tileH:parseInt(dataset.tileH), 
+        x:Math.round(parseFloat(el.style.left)||0), 
+        y:Math.round(parseFloat(el.style.top)||0), 
+        colorCount:parseInt(dataset.colorCount), 
+        colors:[dataset.c1,dataset.c2,dataset.c3,dataset.c4], 
+        nameColor:dataset.nameColor, 
+        nameFontSize: finalNameFontSize, 
+        nameOffsetX: dataset.nameOffsetX, 
+        nameOffsetY: dataset.nameOffsetY 
+      };
     });
   }
   function persistCurrentScreen(){ collectCurrentScreen(); }
@@ -806,12 +893,31 @@
   function clearCanvas(){ getAllComps().forEach(el=>el.remove()); state.selected = null; updateToolbarState(); refreshRecap(); }
   
   function createCompFromData(c){
-    const w = c.cols*c.tileW, h = c.rows*c.tileH;
-    const el = document.createElement('div'); el.className = 'comp';
-    Object.assign(el.dataset, {id:c.id||uid(), tileW:c.tileW, tileH:c.tileH, colorCount:c.colorCount||2, c1:c.colors?.[0], c2:c.colors?.[1], c3:c.colors?.[2], c4:c.colors?.[3], nameColor:c.nameColor, nameFontSize:c.nameFontSize, nameOffsetX:c.nameOffsetX, nameOffsetY:c.nameOffsetY });
-    el.style.cssText = `width:${px(w)}; height:${px(h)}; left:${px(c.x)}; top:${px(c.y)}`;
-    el.innerHTML = `<div class="offset"></div><div class="offsetBR"></div><div class="name">${c.name||'Composizione'}</div><div class="size">${w}×${h}px</div>`;
+    const w = c.cols * c.tileW, h = c.rows * c.tileH;
+    const el = document.createElement('div');
+    el.className = 'comp';
+    el.dataset.id = c.id || uid();
+    el.style.width = px(w);
+    el.style.height = px(h);
+    el.dataset.tileW = String(c.tileW);
+    el.dataset.tileH = String(c.tileH);
+    el.dataset.colorCount = String(c.colorCount ?? 2);
+    const arr = c.colors || [];
+    el.dataset.c1 = arr[0] || state.defaults.colors[0];
+    el.dataset.c2 = arr[1] || state.defaults.colors[1];
+    el.dataset.c3 = arr[2] || state.defaults.colors[2];
+    el.dataset.c4 = arr[3] || state.defaults.colors[3];
+    Object.assign(el.dataset, { nameColor:c.nameColor, nameFontSize:c.nameFontSize, nameOffsetX:c.nameOffsetX, nameOffsetY:c.nameOffsetY });
+    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
+    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
+    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = c.name || 'Composizione'; el.appendChild(nameEl);
+    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
     setNameColor(el, c.nameColor || state.defaults.nameColor);
+    if(c.nameFontSize) {
+        nameEl.style.fontSize = c.nameFontSize + 'px';
+    }
+    el.style.left = px(c.x);
+    el.style.top  = px(c.y);
     screen.appendChild(el);
     renderTileLabels(el, c.cols, c.rows, c.tileW, c.tileH);
     makeDraggable(el); applyCompBackground(el); updateOffsetLabels(el); applyNameTransform(el);
@@ -873,6 +979,27 @@
         }
     });
   }
+  
+  // Gestione visibilità
+  function applyVisibilityState() {
+    for (const key in state.visibility) {
+      const classMap = { name: 'hide-names', size: 'hide-sizes', tileLabels: 'hide-tile-labels', offsetTL: 'hide-offset-tl', offsetBR: 'hide-offset-br' };
+      const button = visibilityPopup.querySelector(`[data-toggle="${key}"]`);
+      const isActive = state.visibility[key];
+      
+      if (button) {
+        button.textContent = isActive ? 'ON' : 'OFF';
+        button.classList.toggle('active', isActive);
+      }
+      
+      if (classMap[key]) {
+        mainBody.classList.toggle(classMap[key], !isActive);
+      }
+    }
+    if ('tileLines' in state.visibility) {
+      refreshAllCompBackgrounds();
+    }
+  }
 
   // Eventi e Boot
   saveBtn.addEventListener('click', saveProject);
@@ -882,11 +1009,30 @@
   new ResizeObserver(fitToViewport).observe(viewport);
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
   
-  toggleFontSizeBtn.addEventListener('click', (e) => { e.stopPropagation(); if(toggleFontSizeBtn.disabled) return; fontSizePopup.classList.toggle('visible'); });
+  toggleFontSizeBtn.addEventListener('click', (e) => { e.stopPropagation(); if(toggleFontSizeBtn.disabled) return; visibilityPopup.classList.remove('visible'); fontSizePopup.classList.toggle('visible'); });
   fontSizeSlider.addEventListener('input', ()=>{ if (!state.selected) return; const size=fontSizeSlider.value; state.selected.dataset.nameFontSize = size; state.selected.querySelector('.name').style.fontSize = size + 'px'; fontSizeValue.textContent = size + 'px'; });
   nameOffsetXSlider.addEventListener('input', ()=>{ if (!state.selected) return; const val=nameOffsetXSlider.value; state.selected.dataset.nameOffsetX = val; nameOffsetXValue.textContent = val + 'px'; applyNameTransform(state.selected); });
   nameOffsetYSlider.addEventListener('input', ()=>{ if (!state.selected) return; const val=nameOffsetYSlider.value; state.selected.dataset.nameOffsetY = val; nameOffsetYValue.textContent = val + 'px'; applyNameTransform(state.selected); });
-  window.addEventListener('click', (e) => { if (!fontSizePopup.contains(e.target) && e.target !== toggleFontSizeBtn) fontSizePopup.classList.remove('visible'); });
+
+  toggleVisibilityBtn.addEventListener('click', (e) => { e.stopPropagation(); fontSizePopup.classList.remove('visible'); visibilityPopup.classList.toggle('visible'); });
+  visibilityPopup.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-toggle]');
+    if (!button) return;
+    const key = button.dataset.toggle;
+    if (key in state.visibility) {
+      state.visibility[key] = !state.visibility[key];
+      applyVisibilityState();
+    }
+  });
+
+  window.addEventListener('click', (e) => {
+    if (fontSizePopup.classList.contains('visible') && !fontSizePopup.contains(e.target) && e.target !== toggleFontSizeBtn) {
+        fontSizePopup.classList.remove('visible');
+    }
+    if (visibilityPopup.classList.contains('visible') && !visibilityPopup.contains(e.target) && e.target !== toggleVisibilityBtn) {
+        visibilityPopup.classList.remove('visible');
+    }
+  });
   
   (function init(){
     state.screens = [{id: uid(), name: 'Schermo 1', canvas: { w:1920, h:1080 }, compositions: []}];
@@ -899,6 +1045,8 @@
     setupEditableValue(fontSizeValue, fontSizeSlider);
     setupEditableValue(nameOffsetXValue, nameOffsetXSlider);
     setupEditableValue(nameOffsetYValue, nameOffsetYSlider);
+
+    applyVisibilityState();
   })();
   
 })();
@@ -931,42 +1079,13 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
         const mid=(lo+hi>>1);
         ctx.font = `bold ${mid}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
         const w = ctx.measureText(text).width;
-        const h = mid*1.1;
-        if (w<=maxWidth && h<=maxHeight){ best=mid; lo=mid+1; } else { hi=mid-1; }
+        if (w<=maxWidth){ best=mid; lo=mid+1; } else { hi=mid-1; }
       }
       ctx.font = `bold ${best}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
       return best;
     }
-    function collectFromDOM(){
-      const screenEl=document.getElementById('screen');
-      if(!screenEl) return null;
-      const w=parseInt(screenEl.style.width,10) || screenEl.offsetWidth || 0;
-      const h=parseInt(screenEl.style.height,10) || screenEl.offsetHeight || 0;
-      if(!w || !h) return null;
-      const comps=[...screenEl.querySelectorAll('.comp')].map(el=>{
-        const { dataset } = el;
-        const tileW=Math.max(1, parseInt(dataset.tileW||'1',10));
-        const tileH=Math.max(1, parseInt(dataset.tileH||'1',10));
-        const cw  = el.offsetWidth;
-        const ch  = el.offsetHeight;
-        const cols=Math.max(1, Math.round(cw / tileW));
-        const rows=Math.max(1, Math.round(ch / tileH));
-        return {
-          x: Math.round(parseFloat(el.style.left)||0),
-          y: Math.round(parseFloat(el.style.top)||0),
-          cols, rows, tileW, tileH,
-          colorCount: Math.max(1, Math.min(4, parseInt(dataset.colorCount||'2',10))),
-          colors: [dataset.c1, dataset.c2, dataset.c3, dataset.c4],
-          name: el.querySelector('.name')?.textContent || 'Composizione',
-          nameColor: dataset.nameColor || '#ffffff',
-          nameFontSize: dataset.nameFontSize,
-          nameOffsetX: dataset.nameOffsetX,
-          nameOffsetY: dataset.nameOffsetY
-        };
-      });
-      return { name:'screen', canvas:{w,h}, compositions: comps };
-    }
-    function drawScreenToCanvas(scr, defaults){
+    
+    function drawScreenToCanvas(scr, defaults, visibility){
       const w = Math.max(1, parseInt(scr.canvas?.w||1920,10));
       const h = Math.max(1, parseInt(scr.canvas?.h||1080,10));
       const cvs=document.createElement('canvas'); cvs.width=w; cvs.height=h;
@@ -974,6 +1093,7 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
       ctx.fillStyle='#000'; ctx.fillRect(0,0,w,h);
       let lineColor='#9fd7ff';
       try{ lineColor = getComputedStyle(document.documentElement).getPropertyValue('--tileLine').trim() || lineColor; }catch(e){}
+      
       (scr.compositions||[]).forEach(comp=>{
         const x=Math.round(comp.x||0), y=Math.round(comp.y||0);
         const {cols, rows, tileW, tileH} = comp;
@@ -989,75 +1109,86 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
             else if(count===3) col=pal[(r+c)%3];
             else if(count===4) col=pal[(r%2)*2 + (c%2)];
             const tx=x + c*tileW, ty=y + r*tileH;
-            ctx.fillStyle=lineColor; ctx.fillRect(tx, ty, tileW, tileH);
-            const iw=Math.max(0,tileW-2), ih=Math.max(0,tileH-2);
-            if(iw>0 && ih>0){ ctx.fillStyle=col; ctx.fillRect(tx+1, ty+1, iw, ih); }
-            const fs = Math.max(9, Math.min(28, Math.floor(Math.min(tileW, tileH)*0.28)));
-            ctx.font = `bold ${fs}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
-            ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-            ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 2;
-            ctx.fillText(`${r+1}-${c+1}`, tx+2, ty+2);
-            ctx.shadowBlur = 0;
+            
+            const borderWidth = visibility.tileLines ? 1 : 0;
+            if (borderWidth > 0) { ctx.fillStyle=lineColor; ctx.fillRect(tx, ty, tileW, tileH); }
+            
+            const iw = tileW - (borderWidth*2), ih = tileH - (borderWidth*2);
+            ctx.fillStyle = col;
+            if (iw > 0 && ih > 0) { ctx.fillRect(tx + borderWidth, ty + borderWidth, iw, ih); } 
+            else { ctx.fillRect(tx, ty, tileW, tileH); }
+
+            if(visibility.tileLabels) {
+              const fs = Math.max(9, Math.min(28, Math.floor(Math.min(tileW, tileH)*0.28)));
+              ctx.font = `bold ${fs}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+              ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+              ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 2;
+              ctx.fillText(`${r+1}-${c+1}`, tx+2, ty+2);
+              ctx.shadowBlur = 0;
+            }
           }
         }
 
         const outline=3;
-        ctx.fillStyle='#fff';
+        ctx.fillStyle='#45b8ff'; 
         ctx.fillRect(x, y, rectW, outline); ctx.fillRect(x, y+rectH-outline, rectW, outline);
         ctx.fillRect(x, y, outline, rectH); ctx.fillRect(x+rectW-outline, y, outline, rectH);
 
-        const name = comp.name || '';
-        const nameCol = comp.nameColor || '#ffffff';
-        const sizeTxt = `${rectW}×${rectH}px`;
-        const offTL = `(${x},${y})`;
-        const offBR = `(${x + rectW - 1},${y + rectH - 1})`;
-        
-        const centerX = x + rectW/2;
-        const nameBaseY = y + rectH / 2;
-        const sizeBaseY = y + rectH - (tileH / 2);
+        const name = comp.name || '', nameCol = comp.nameColor || '#ffffff', sizeTxt = `${rectW}×${rectH}px`;
+        const centerX = x + rectW/2, nameBaseY = y + rectH / 2, sizeBaseY = y + rectH - (tileH / 2);
 
         ctx.textAlign='center'; ctx.textBaseline='middle';
-        ctx.fillStyle=nameCol; ctx.shadowColor='#000'; ctx.shadowBlur=4;
+        ctx.shadowColor='#000'; ctx.shadowBlur=4;
         
-        const nameSize = comp.nameFontSize ? parseInt(comp.nameFontSize, 10) : fitFont(ctx, name, rectW-16, (rectH - tileH) * 0.8, 72);
-        ctx.font = `bold ${nameSize}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
-        const finalNameX = centerX + (parseInt(comp.nameOffsetX, 10) || 0);
-        const verticalCorrection = nameSize * 0.1;
-        const nudge = -4; // Corrisponde al nudge dell'anteprima
-        const finalNameY = nameBaseY + ((parseInt(comp.nameOffsetY, 10) || 0) * -1) + verticalCorrection + nudge;
-        ctx.fillText(name, finalNameX, finalNameY);
+        if (visibility.name) {
+          ctx.fillStyle=nameCol;
+          const nameSize = comp.nameFontSize ? parseInt(comp.nameFontSize, 10) : 32;
+          ctx.font = `bold ${nameSize}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+          const finalNameX = centerX + (parseInt(comp.nameOffsetX, 10) || 0);
+          const verticalCorrection = nameSize * 0.1;
+          const nudge = -4; 
+          const finalNameY = nameBaseY + ((parseInt(comp.nameOffsetY, 10) || 0) * -1) + verticalCorrection + nudge;
+          ctx.fillText(name, finalNameX, finalNameY);
+        }
 
-        ctx.shadowBlur=3;
-        const sizeFont = Math.max(10, Math.floor(nameSize*0.45));
-        ctx.font = `bold ${sizeFont}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
-        ctx.fillText(sizeTxt, centerX, sizeBaseY);
-
+        if (visibility.size) {
+          ctx.fillStyle=nameCol;
+          const nameSizeForRef = comp.nameFontSize ? parseInt(comp.nameFontSize, 10) : 32;
+          ctx.shadowBlur=3;
+          const sizeFont = Math.max(10, Math.floor(nameSizeForRef*0.45));
+          ctx.font = `bold ${sizeFont}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+          ctx.fillText(sizeTxt, centerX, sizeBaseY);
+        }
+        
+        const offTL = `(${x},${y})`, offBR = `(${x + rectW - 1},${y + rectH - 1})`;
         const offMax = Math.max(10, Math.min(24, Math.floor(rectH*0.12)));
         ctx.fillStyle='#fff'; ctx.shadowColor='#000'; ctx.shadowBlur=2;
-        fitFont(ctx, offTL, rectW*0.5, offMax, offMax);
-        ctx.textAlign='left'; ctx.textBaseline='top';
-        // MODIFICA: Spostato offset più in basso nell'export
-        ctx.fillText(offTL, x+6, y+30);
-        fitFont(ctx, offBR, rectW*0.5, offMax, offMax);
-        ctx.textAlign='right'; ctx.textBaseline='bottom';
-        ctx.fillText(offBR, x+rectW-6, y+rectH-6);
+        
+        if (visibility.offsetTL) {
+          ctx.font = `bold ${offMax}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+          ctx.textAlign='left'; ctx.textBaseline='top';
+          ctx.fillText(offTL, x+6, y+30);
+        }
+        if (visibility.offsetBR) {
+          ctx.font = `bold ${offMax}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+          ctx.textAlign='right'; ctx.textBaseline='bottom';
+          ctx.fillText(offBR, x+rectW-6, y+rectH-6);
+        }
         ctx.shadowBlur=0;
       });
       return cvs;
     }
 
     function exportPNGs(){
-      let proj;
-      if(typeof collectProject ==='function') proj=collectProject();
-      else proj = { name:'progetto', screens:[collectFromDOM()] };
+      const proj = window.collectProject(); 
+      if(!proj || !proj.screens || !proj.screens.length){ alert('Nessuno schermo da esportare.'); return; }
       
-      if(!proj || !proj.screens || proj.screens.length === 0){ alert('Nessuno schermo da esportare.'); return; }
+      const visibilityState = window.state.visibility;
       const projName=safeName(proj.name||'progetto');
-      const defaults = proj.defaults || {};
       const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
       
       proj.screens.forEach((scr,idx)=>{
-        const can=drawScreenToCanvas(scr, defaults);
+        const can=drawScreenToCanvas(scr, proj.defaults, visibilityState);
         const filename=`${projName}_${safeName(scr.name||('screen_'+(idx+1)))}_${scr.canvas.w}x${scr.canvas.h}.png`;
         if(isIOS){
           const dataURL=can.toDataURL('image/png');
