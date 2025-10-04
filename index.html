@@ -22,7 +22,6 @@
       background:#0c0d11; border:1px solid #1e2229; box-sizing:content-box;
       touch-action:none; -webkit-user-select:none; user-select:none; overflow:hidden;
     }
-    /* Griglia canvas 100px */
     #screen::before { content:""; position:absolute; inset:0; pointer-events:none;
       background-image:
         linear-gradient(to right, #181c24 1px, transparent 1px),
@@ -34,17 +33,24 @@
       position:absolute; z-index:2; box-sizing:border-box;
       cursor:grab; touch-action:none; user-select:none;
       display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
-      box-shadow: inset 0 0 0 3px var(--acc); /* bordo interno 3px */
+      box-shadow: inset 0 0 0 3px var(--acc);
       padding: 4px 8px;
       background-repeat: repeat;
       background-position: 0 0;
     }
     .comp.selected { box-shadow: inset 0 0 0 3px #7fd0ff; }
-    .comp .name, .comp .size {
+    .comp .name {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; pointer-events: none;
       color:#eef6ff; text-shadow:0 1px 2px #000;
+      position: relative;
+      font-weight: bold;
     }
-    .comp .size { color:#d6e8ff; margin-top:4px; }
+    .comp .size {
+      color:#d6e8ff;
+      position: absolute;
+      left: 50%;
+      font-weight: bold;
+    }
 
     /* Offset TL e BR */
     .comp .offset, .comp .offsetBR {
@@ -56,7 +62,8 @@
       max-width:55%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
       line-height:1; pointer-events:none;
     }
-    .comp .offset  { top:3px;    left:3px; }
+    /* MODIFICA: Spostato offset più in basso */
+    .comp .offset  { top:32px; left:3px; }
     .comp .offsetBR{ bottom:3px; right:3px; }
 
     /* Form & pills */
@@ -75,27 +82,67 @@
     #toolbar .spacer { flex:1; }
     .divider { width:1px; height:26px; background:#2b2f36; }
 
-    /* Inline canvas size editor (compatto) + screen switcher */
+    /* Stili vari */
     .canvas-size { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
     .canvas-size input { width:84px; padding:5px 6px; font-size:12px; }
     .canvas-size .x { color:#88909a; font-size:12px; }
     .canvas-size .btns { display:flex; gap:4px; }
     .canvas-size .btns button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
     .canvas-size .btns button:hover { background:rgba(255,255,255,0.08); }
-
     .screen-ctrl { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 6px; border-radius:8px; }
     .screen-ctrl select { width:auto; padding:5px 6px; font-size:12px; }
     .screen-ctrl button { background:none; border:1px solid #444; padding:4px 6px; font-size:12px; border-radius:6px; color:#cfe6ff; }
     .screen-ctrl button:hover { background:rgba(255,255,255,0.08); }
-
-    /* Palette in toolbar */
     .palette { display:flex; align-items:center; gap:6px; background:#0f1115; border:1px solid #2b2f36; padding:4px 8px; border-radius:8px; }
     .palette select{ width:auto; padding:4px 6px; font-size:12px; }
     .swatch { width:24px; height:22px; border-radius:6px; border:1px solid #2b2f36; overflow:hidden; position:relative; }
     .swatch input[type=color]{ position:absolute; inset:0; opacity:0; cursor:pointer; }
     .swatch .preview{ position:absolute; inset:0; border-radius:6px; }
 
-    /* Recap */
+    /* Stile per il controllo font size */
+    #fontSizeContainer { position: relative; }
+    #fontSizePopup {
+      display: none;
+      position: absolute;
+      top: calc(100% + 5px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      z-index: 10;
+      width: 250px;
+    }
+    #fontSizePopup.visible { display: block; }
+    #fontSizePopup .slider-row { display:flex; align-items:center; gap:8px; margin-bottom: 4px; }
+    #fontSizePopup .slider-row:last-child { margin-bottom: 0; }
+    #fontSizePopup .slider-row > span:first-child { 
+      width: 32px; 
+      font-size: 11px; 
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .editable-value {
+      font-size: 12px;
+      color: var(--ink);
+      min-width: 40px;
+      text-align: right;
+      cursor: text;
+      border-bottom: 1px dashed transparent;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .editable-value:hover {
+      border-bottom-color: var(--muted);
+    }
+    .editable-value:focus {
+      outline: 1px solid var(--acc);
+      background: #000;
+      border-bottom-color: transparent;
+    }
+
+    /* Stili Recap e Modal */
     #recap { max-height:280px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
     .recap-item { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:6px 8px; border-radius:8px; }
     .recap-item:hover { background:#101318; }
@@ -103,25 +150,22 @@
     .pill { background:#0f1115; border:1px solid #2b2f36; border-radius:999px; padding:3px 8px; font-size:12px; color:#cfd3d7; }
     .editable { border-bottom:1px dashed #3a8fff; cursor:text; }
     .sep { color:#5f6772; }
-
-    /* Modal semplice */
     .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);z-index:50}
     .modal .dialog{background:#151519;border:1px solid #2b2f36;border-radius:12px;padding:16px;min-width:280px;max-width:90vw}
   
-/* Etichetta per singola mattonella (colonna-riga) */
-.tile-label{
-  position:absolute;
-  left:0; top:0; transform:translate(2px,2px);
-  font-weight:700;
-  font-size:12px;
-  line-height:1;
-  color:#ffffff;
-  text-shadow:0 1px 2px rgba(0,0,0,.9);
-  pointer-events:none;
-  user-select:none;
-  white-space:nowrap;
-}
-</style>
+    .tile-label{
+      position:absolute;
+      left:0; top:0; transform:translate(2px,2px);
+      font-weight:700;
+      font-size:12px;
+      line-height:1;
+      color:#ffffff;
+      text-shadow:0 1px 2px rgba(0,0,0,.9);
+      pointer-events:none;
+      user-select:none;
+      white-space:nowrap;
+    }
+  </style>
 </head>
 <body>
   <header>
@@ -130,7 +174,6 @@
 
   <main>
     <section id="left">
-      <!-- Project Bar -->
       <div class="panel" style="padding:10px">
         <div id="projectBar" style="display:flex; gap:6px; align-items:center;">
           <input id="projectName" type="text" style="flex:1" placeholder="Nome progetto (es. MainStage)" />
@@ -141,7 +184,6 @@
         <div style="margin-top:6px"><small>I campi accettano formule: <code>*2</code>, <code>+64</code>, <code>128*3</code>…</small></div>
       </div>
 
-      <!-- Nuova composizione (compatto) -->
       <div class="panel" style="padding:10px">
         <div style="font-weight:700; margin-bottom:6px">Nuova composizione</div>
         <div>
@@ -159,7 +201,6 @@
         <button id="addComp" style="margin-top:10px; width:100%">Aggiungi</button>
       </div>
 
-      <!-- Recap -->
       <div class="panel" style="padding:10px">
         <div style="font-weight:700; margin-bottom:6px">Composizioni</div>
         <div id="recap"></div>
@@ -168,75 +209,71 @@
 
     <section id="work">
       <div class="panel" style="display:flex; flex-direction:column; gap:8px; min-height:72vh">
-	<div id="toolbar">
-      <span class="divider"></span>
-      <button id="exportBtn" class="icon" title="Esporta PNG">🖼️</button>
-		<button id="renameBtn" class="icon" title="Rinomina">✎</button>
-		<button id="duplicateBtn" class="icon" title="Duplica">⧉</button>
-		<button id="deleteBtn" class="icon" title="Elimina">🗑️</button>
+        <div id="toolbar">
+          <span class="divider"></span>
+          <button id="exportBtn" class="icon" title="Esporta PNG">🖼️</button>
+          <button id="renameBtn" class="icon" title="Rinomina">✎</button>
+          <button id="duplicateBtn" class="icon" title="Duplica">⧉</button>
+          <button id="deleteBtn" class="icon" title="Elimina">🗑️</button>
+          <span class="divider"></span>
+          <div class="palette" title="Palette mattonelle (1–4 colori)">
+            <span style="font-size:12px;color:#a8b0bb">Colori</span>
+            <select id="tbColorCount" aria-label="Numero colori">
+              <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="4">4</option>
+            </select>
+            <div class="swatch" id="sw1" title="Colore 1"><div class="preview" id="sw1p" style="background:#3b82f6"></div><input type="color" id="tbCol1" value="#3b82f6"></div>
+            <div class="swatch" id="sw2" title="Colore 2"><div class="preview" id="sw2p" style="background:#10b981"></div><input type="color" id="tbCol2" value="#10b981"></div>
+            <div class="swatch" id="sw3" title="Colore 3" style="display:none"><div class="preview" id="sw3p" style="background:#f97316"></div><input type="color" id="tbCol3" value="#f97316"></div>
+            <div class="swatch" id="sw4" title="Colore 4" style="display:none"><div class="preview" id="sw4p" style="background:#ec4899"></div><input type="color" id="tbCol4" value="#ec4899"></div>
+          </div>
+          <div class="palette" title="Colore testo nome/dimensione">
+            <span style="font-size:12px;color:#a8b0bb">Testo</span>
+            <div class="swatch" id="swName" title="Colore testo"><div class="preview" id="swNamePrev" style="background:#ffffff"></div><input type="color" id="tbNameColor" value="#ffffff"></div>
+          </div>
+          
+          <div id="fontSizeContainer">
+            <button id="toggleFontSizeBtn" class="icon" title="Dimensione e Posizione Testo">Aa</button>
+            <div id="fontSizePopup">
+              <div class="slider-row">
+                <span>Size</span>
+                <input type="range" id="fontSizeSlider" min="8" max="160" value="24" step="1">
+                <span id="fontSizeValue" class="editable-value" contenteditable="true">24px</span>
+              </div>
+              <div class="slider-row">
+                <span>X</span>
+                <input type="range" id="nameOffsetXSlider" min="-1000" max="1000" value="0" step="1">
+                <span id="nameOffsetXValue" class="editable-value" contenteditable="true">0px</span>
+              </div>
+              <div class="slider-row">
+                <span>Y</span>
+                <input type="range" id="nameOffsetYSlider" min="-1000" max="1000" value="0" step="1">
+                <span id="nameOffsetYValue" class="editable-value" contenteditable="true">0px</span>
+              </div>
+            </div>
+          </div>
 
-		<span class="divider"></span>
-
-		<!-- Palette -->
-		<div class="palette" title="Palette mattonelle (1–4 colori)">
-			<span style="font-size:12px;color:#a8b0bb">Colori</span>
-			<select id="tbColorCount" aria-label="Numero colori">
-			  <option value="1">1</option>
-			  <option value="2" selected>2</option>
-			  <option value="3">3</option>
-			  <option value="4">4</option>
-			</select>
-			<div class="swatch" id="sw1" title="Colore 1">
-			  <div class="preview" id="sw1p" style="background:#3b82f6"></div>
-			  <input type="color" id="tbCol1" value="#3b82f6">
-			</div>
-			<div class="swatch" id="sw2" title="Colore 2">
-			  <div class="preview" id="sw2p" style="background:#10b981"></div>
-			  <input type="color" id="tbCol2" value="#10b981">
-			</div>
-			<div class="swatch" id="sw3" title="Colore 3" style="display:none">
-			  <div class="preview" id="sw3p" style="background:#f97316"></div>
-			  <input type="color" id="tbCol3" value="#f97316">
-			</div>
-			<div class="swatch" id="sw4" title="Colore 4" style="display:none">
-			  <div class="preview" id="sw4p" style="background:#ec4899"></div>
-			  <input type="color" id="tbCol4" value="#ec4899">
-			</div>
-		  </div>
-
-  <span class="divider"></span>
-
-  <!-- Spinge a destra il blocco schermo+canvas -->
-  <div class="spacer"></div>
-
-  <!-- Schermo (ORA a sinistra delle dimensioni canvas) -->
-  <div class="screen-ctrl" title="Gestione schermi">
-    <select id="screenSelect" aria-label="Schermo"></select>
-    <button id="newScreenBtn" title="Nuovo schermo">Nuovo</button>
-  </div>
-
-  <!-- Canvas size (rimane a destra) -->
-  <div class="canvas-size" title="Dimensione canvas (formule supportate)">
-    <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2" aria-label="Canvas width">
-    <span class="x">×</span>
-    <input id="canvasH" type="text" value="1080" placeholder="1080, *2" aria-label="Canvas height">
-    <div class="btns">
-      <button id="applyCanvas" title="Applica">Applica</button>
-      <button id="fit" title="Fit">Fit</button>
-    </div>
-  </div>
-</div>
-
-        <div id="viewport">
-          <div id="screenWrap">
-            <div id="screen"></div>
+          <span class="divider"></span>
+          <div class="spacer"></div>
+          <div class="screen-ctrl" title="Gestione schermi">
+            <select id="screenSelect" aria-label="Schermo"></select>
+            <button id="newScreenBtn" title="Nuovo schermo">Nuovo</button>
+          </div>
+          <div class="canvas-size" title="Dimensione canvas (formule supportate)">
+            <input id="canvasW" type="text" value="1920" placeholder="1920, +10, *2" aria-label="Canvas width">
+            <span class="x">×</span>
+            <input id="canvasH" type="text" value="1080" placeholder="1080, *2" aria-label="Canvas height">
+            <div class="btns">
+              <button id="applyCanvas" title="Applica">Applica</button>
+              <button id="fit" title="Fit">Fit</button>
+            </div>
           </div>
         </div>
+
+        <div id="viewport"><div id="screenWrap"><div id="screen"></div></div></div>
       </div>
     </section>
   </main>
 
-  <!-- Modal rinomina -->
   <div id="renameModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="renameTitle" style="display:none;">
     <div class="dialog">
       <h3 id="renameTitle">Rinomina composizione</h3>
@@ -251,13 +288,13 @@
 
   <footer>
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
-      Multi-Screen • Drag fluido • Snap tra rettangoli (prioritario) + griglia (secondaria) • Bordi interni 3px • Linee mattonelle 2px • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1–4 colori in toolbar.
+      Multi-Screen • Drag fluido • Snap tra rettangoli (prioritario) + griglia (secondaria) • Bordi interni 3px • Linee mattonelle 2px • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1–4 colori in toolbar • Colore nome personalizzabile.
     </div>
   </footer>
 
 <script>
 (()=> {
-  // ===== Helpers: espressioni intere =====
+  // Helpers
   function evalIntExpression(expr, base) {
     if (typeof expr !== 'string') expr = String(expr ?? '');
     const s = expr.trim();
@@ -273,28 +310,20 @@
   const px = (n)=> Math.round(n) + 'px';
   const uid = ()=> Math.random().toString(36).slice(2) + Date.now().toString(36);
 
-  // ===== Stato =====
-  const state = {
-    scale: 1,
-    selected: null,
-    defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'] },
-    screens: [],            // {id, name, canvas:{w,h}, compositions:[], defaults?}
-    activeScreenId: null,
-  };
+  // Stato
+  const state = { scale: 1, selected: null, defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'], nameColor:'#ffffff' }, screens: [], activeScreenId: null };
   const SNAP_THRESHOLD_EDGE = 12;
   const SNAP_THRESHOLD_GRID = 8;
   const MIN_OFFSET_FONT = 10;
   const TILE_LINE_COLOR = getComputedStyle(document.documentElement).getPropertyValue('--tileLine').trim() || '#9fd7ff';
 
-  // ===== DOM =====
+  // DOM
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
-
   const projectNameInput = document.getElementById('projectName');
   const saveBtn = document.getElementById('saveBtn');
   const loadFile = document.getElementById('loadFile');
-
   const compNameInput = document.getElementById('compName');
   const colsInput = document.getElementById('cols');
   const rowsInput = document.getElementById('rows');
@@ -303,7 +332,6 @@
   const startXInput = document.getElementById('startX');
   const startYInput = document.getElementById('startY');
   const addCompBtn = document.getElementById('addComp');
-
   const renameBtn = document.getElementById('renameBtn');
   const dupBtn = document.getElementById('duplicateBtn');
   const delBtn = document.getElementById('deleteBtn');
@@ -311,49 +339,42 @@
   const renameInput = document.getElementById('renameInput');
   const renameSave = document.getElementById('renameSave');
   const renameCancel = document.getElementById('renameCancel');
-
   const canvasWInput = document.getElementById('canvasW');
   const canvasHInput = document.getElementById('canvasH');
   const applyCanvasBtn = document.getElementById('applyCanvas');
   const fitBtn = document.getElementById('fit');
-
-  // Palette (toolbar)
   const tbColorCount = document.getElementById('tbColorCount');
-  const tbCol1 = document.getElementById('tbCol1'), tbCol2 = document.getElementById('tbCol2'),
-        tbCol3 = document.getElementById('tbCol3'), tbCol4 = document.getElementById('tbCol4');
-  const sw1p = document.getElementById('sw1p'), sw2p = document.getElementById('sw2p'),
-        sw3p = document.getElementById('sw3p'), sw4p = document.getElementById('sw4p');
+  const tbCol1 = document.getElementById('tbCol1'), tbCol2 = document.getElementById('tbCol2'), tbCol3 = document.getElementById('tbCol3'), tbCol4 = document.getElementById('tbCol4');
+  const sw1p = document.getElementById('sw1p'), sw2p = document.getElementById('sw2p'), sw3p = document.getElementById('sw3p'), sw4p = document.getElementById('sw4p');
   const sw3 = document.getElementById('sw3'), sw4 = document.getElementById('sw4');
-
+  const tbNameColor = document.getElementById('tbNameColor');
+  const swNamePrev  = document.getElementById('swNamePrev');
   const recap = document.getElementById('recap');
-
-  // Screen switcher
   const screenSelect = document.getElementById('screenSelect');
   const newScreenBtn = document.getElementById('newScreenBtn');
+  // DOM per il popup
+  const toggleFontSizeBtn = document.getElementById('toggleFontSizeBtn');
+  const fontSizePopup = document.getElementById('fontSizePopup');
+  const fontSizeSlider = document.getElementById('fontSizeSlider');
+  const fontSizeValue = document.getElementById('fontSizeValue');
+  const nameOffsetXSlider = document.getElementById('nameOffsetXSlider');
+  const nameOffsetXValue = document.getElementById('nameOffsetXValue');
+  const nameOffsetYSlider = document.getElementById('nameOffsetYSlider');
+  const nameOffsetYValue = document.getElementById('nameOffsetYValue');
 
-  // ===== Canvas sizing =====
-  function applyCanvasSize(w,h){
-    screen.style.width = px(w); screen.style.height = px(h);
-    fitToViewport();
-    clampAllComps();
-  }
+  // Funzioni
+  function applyCanvasSize(w,h){ screen.style.width = px(w); screen.style.height = px(h); fitToViewport(); clampAllComps(); }
   function fitToViewport(){
-    const vw = viewport.clientWidth - 16;
-    const vh = viewport.clientHeight - 16;
-    const sx = vw / (getCanvas().w + 20);
-    const sy = vh / (getCanvas().h + 20);
+    const vw = viewport.clientWidth - 16, vh = viewport.clientHeight - 16;
+    const sx = vw / (getCanvas().w + 20), sy = vh / (getCanvas().h + 20);
     state.scale = Math.min(sx, sy, 1);
     screenWrap.style.transform = `translateZ(0) scale(${state.scale})`;
   }
-  function getCanvas() {
-    const scr = getActiveScreen();
-    return scr ? scr.canvas : {w:1920,h:1080};
-  }
+  function getCanvas() { return getActiveScreen()?.canvas || {w:1920,h:1080}; }
   function clampAllComps(){
     const {w:cw, h:ch} = getCanvas();
     document.querySelectorAll('.comp').forEach(el=>{
-      let x = Math.round(parseFloat(el.style.left)||0);
-      let y = Math.round(parseFloat(el.style.top)||0);
+      let x = Math.round(parseFloat(el.style.left)||0), y = Math.round(parseFloat(el.style.top)||0);
       const w = el.offsetWidth, h = el.offsetHeight;
       x = Math.max(0, Math.min(cw - w, x));
       y = Math.max(0, Math.min(ch - h, y));
@@ -363,26 +384,45 @@
   }
 
   function selectComp(el){
-    if (state.selected && state.selected !== el){ state.selected.classList.remove('selected'); }
+    if (state.selected && state.selected !== el) state.selected.classList.remove('selected');
     state.selected = el;
     if (state.selected) {
       state.selected.classList.add('selected');
-      // sync palette toolbar con selezione
-      const n = parseInt(state.selected.dataset.colorCount || state.defaults.colorCount,10);
-      tbColorCount.value = String(n);
+      tbColorCount.value = String(parseInt(state.selected.dataset.colorCount || state.defaults.colorCount,10));
       const cols = getCompColors(state.selected);
-      const arr = [tbCol1,tbCol2,tbCol3,tbCol4];
-      const prev = [sw1p,sw2p,sw3p,sw4p];
-      for(let i=0;i<4;i++){ const v = cols[i] || state.defaults.colors[i]; arr[i].value = v; prev[i].style.background = v; }
+      [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp,i)=>{ const v=cols[i]||state.defaults.colors[i]; inp.value=v; [sw1p,sw2p,sw3p,sw4p][i].style.background=v; });
       updateToolbarColorVisibility();
+      tbNameColor.value = state.selected.dataset.nameColor || state.defaults.nameColor;
+      swNamePrev.style.background = tbNameColor.value;
+
+      const nameEl = state.selected.querySelector('.name');
+      const currentSize = state.selected.dataset.nameFontSize || Math.round(parseFloat(window.getComputedStyle(nameEl).fontSize));
+      fontSizeSlider.value = currentSize;
+      fontSizeValue.textContent = currentSize + 'px';
+      
+      const offsetX = state.selected.dataset.nameOffsetX || 0;
+      nameOffsetXSlider.value = offsetX;
+      nameOffsetXValue.textContent = offsetX + 'px';
+
+      const offsetY = state.selected.dataset.nameOffsetY || 0;
+      nameOffsetYSlider.value = offsetY;
+      nameOffsetYValue.textContent = offsetY + 'px';
+
+    } else {
+        fontSizePopup.classList.remove('visible');
     }
     updateToolbarState();
     highlightRecapSelection();
   }
-  function clearSelection(){ if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateToolbarState(); highlightRecapSelection(); } }
-  function updateToolbarState(){ const has = !!state.selected; dupBtn.disabled = !has; delBtn.disabled = !has; renameBtn.disabled = !has; }
+  function clearSelection(){ 
+      if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateToolbarState(); highlightRecapSelection(); } 
+  }
+  function updateToolbarState(){
+    const has = !!state.selected;
+    [dupBtn, delBtn, renameBtn, toggleFontSizeBtn].forEach(btn => btn.disabled = !has);
+    if (!has) fontSizePopup.classList.remove('visible');
+  }
 
-  // ===== Auto-fit testo =====
   const _measureCanvas = document.createElement('canvas');
   const _mctx = _measureCanvas.getContext('2d');
   const FONT_FAMILY = "system-ui, -apple-system, Segoe UI, Roboto, sans-serif";
@@ -393,391 +433,234 @@
       if (w<=maxWidth && h<=maxHeight) { best=mid; lo=mid+1; } else { hi=mid-1; } }
     return best;
   }
-  function fitLabels(el) {
-    const nameEl = el.querySelector('.name');
+  
+  function positionSizeLabel(el) {
     const sizeEl = el.querySelector('.size');
-    const offTL  = el.querySelector('.offset');
-    const offBR  = el.querySelector('.offsetBR');
-
-    if (nameEl && sizeEl) {
-      const padH=16, padV=8, innerW=el.clientWidth - padH, innerH=el.clientHeight - padV;
-      const namePx = maxFontThatFits(nameEl.textContent||"", "800", innerW, Math.max(10, Math.floor(innerH*0.70)), 8, 160);
-      const sizePx = maxFontThatFits(sizeEl.textContent||"", "400", innerW, Math.max(10, Math.floor(innerH*0.25)), 8, 64);
-      nameEl.style.fontSize = namePx + "px"; sizeEl.style.fontSize = sizePx + "px";
-    }
-    const fitCorner = (elCorner)=>{
-      if (!elCorner) return;
-      const maxWidth  = Math.max(20, Math.floor(el.clientWidth * 0.55) - 8);
-      const maxHeight = Math.max(10, Math.floor(el.clientHeight * 0.18) - 6);
-      const f = maxFontThatFits(elCorner.textContent||"", "600", maxWidth, maxHeight, 9, 22);
-      elCorner.style.display = (f < MIN_OFFSET_FONT) ? 'none' : 'inline-block';
-      if (f >= MIN_OFFSET_FONT) elCorner.style.fontSize = f + 'px';
-    };
-    fitCorner(offTL); fitCorner(offBR);
+    if (!sizeEl) return;
+    const tileH = parseInt(el.dataset.tileH || '128', 10);
+    sizeEl.style.bottom = px(tileH / 2);
+    sizeEl.style.transform = 'translate(-50%, 50%)';
   }
 
-  // ===== Offset labels =====
+  function applyNameTransform(el) {
+    const nameEl = el.querySelector('.name');
+    if (!nameEl) return;
+    const x = el.dataset.nameOffsetX || 0;
+    const yBase = (el.dataset.nameOffsetY || 0) * -1;
+    const nudge = -4; // MODIFICA: Sposta leggermente in su per centrare meglio
+    nameEl.style.transform = `translate(${x}px, ${yBase + nudge}px)`;
+  }
+
+  function fitLabels(el) {
+    const nameEl = el.querySelector('.name'), sizeEl = el.querySelector('.size'), offTL  = el.querySelector('.offset'), offBR  = el.querySelector('.offsetBR');
+    if (nameEl && sizeEl) {
+      const padH=16, padV=8, innerW=el.clientWidth - padH, innerH=el.clientHeight - padV;
+      if (el.dataset.nameFontSize) {
+        nameEl.style.fontSize = el.dataset.nameFontSize + "px";
+      } else {
+        const namePx = maxFontThatFits(nameEl.textContent||"", "800", innerW, Math.max(10, Math.floor(innerH*0.70)), 8, 160);
+        nameEl.style.fontSize = namePx + "px";
+      }
+      sizeEl.style.fontSize = maxFontThatFits(sizeEl.textContent||"", "400", innerW, Math.max(10, Math.floor(innerH*0.25)), 8, 64) + "px";
+    }
+    [offTL, offBR].forEach(elCorner => {
+      if (!elCorner) return;
+      const f = maxFontThatFits(elCorner.textContent||"", "600", Math.max(20, Math.floor(el.clientWidth*0.55)-8), Math.max(10, Math.floor(el.clientHeight*0.18)-6), 9, 22);
+      elCorner.style.display = (f < MIN_OFFSET_FONT) ? 'none' : 'inline-block';
+      if (f >= MIN_OFFSET_FONT) elCorner.style.fontSize = f + 'px';
+    });
+  }
+
   function updateOffsetLabels(el){
-    const offTL = el.querySelector('.offset');
-    const offBR = el.querySelector('.offsetBR');
-    const x = Math.round(parseFloat(el.style.left) || 0);
-    const y = Math.round(parseFloat(el.style.top)  || 0);
-    const w = el.offsetWidth;
-    const h = el.offsetHeight;
-    if (offTL) offTL.textContent = `(${x}, ${y})`;
-    if (offBR) offBR.textContent = `(${x + w - 1}, ${y + h - 1})`;
+    const x = Math.round(parseFloat(el.style.left) || 0), y = Math.round(parseFloat(el.style.top)  || 0);
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.querySelector('.offset').textContent = `(${x}, ${y})`;
+    el.querySelector('.offsetBR').textContent = `(${x + w - 1}, ${y + h - 1})`;
+    positionSizeLabel(el);
     fitLabels(el);
     refreshRecap();
   }
 
-  // ===== Pattern a scacchiera (1–4 colori) con linee da 2px =====
   function getCompColors(el){
     const count = parseInt(el?.dataset.colorCount || state.defaults.colorCount, 10);
-    const arr = [
-      el?.dataset.c1 || state.defaults.colors[0],
-      el?.dataset.c2 || state.defaults.colors[1],
-      el?.dataset.c3 || state.defaults.colors[2],
-      el?.dataset.c4 || state.defaults.colors[3],
-    ];
+    const arr = [el?.dataset.c1, el?.dataset.c2, el?.dataset.c3, el?.dataset.c4].map((c,i) => c || state.defaults.colors[i]);
     return arr.slice(0, Math.max(1, Math.min(4, count)));
   }
   function makePatternDataURL(colors, tileW, tileH){
-    const n = Math.max(1, Math.min(4, colors.length));
-    let cols = colors.slice(0,n);
+    const n = colors.length;
     let pattCols = 1, pattRows = 1;
-    if (n === 1) { pattCols=1; pattRows=1; }
-    else if (n === 2) { pattCols=2; pattRows=2; }
+    if (n === 2 || n === 4) { pattCols=2; pattRows=2; }
     else if (n === 3) { pattCols=3; pattRows=3; }
-    else { pattCols=2; pattRows=2; }
-
-    const W = Math.max(1, tileW * pattCols);
-    const H = Math.max(1, tileH * pattRows);
-
-    const c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    const ctx = c.getContext('2d');
-    ctx.imageSmoothingEnabled = false;
-
+    const W = tileW*pattCols, H = tileH*pattRows;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false;
     for (let r=0; r<pattRows; r++){
       for (let q=0; q<pattCols; q++){
-        let color = cols[0];
-        if (n===1){ color = cols[0]; }
-        else if (n===2){ color = ( (r+q) % 2 === 0 ) ? cols[0] : cols[1]; }
-        else if (n===3){ color = cols[(r+q)%3]; }
-        else { // 4
-          if (r===0 && q===0) color = cols[0];
-          else if (r===0 && q===1) color = cols[1];
-          else if (r===1 && q===0) color = cols[2];
-          else color = cols[3];
-        }
-        const x = q*tileW, y = r*tileH, w = tileW, h = tileH;
-        ctx.fillStyle = TILE_LINE_COLOR; ctx.fillRect(x, y, w, h);
-        const iw = Math.max(0, w-2), ih = Math.max(0, h-2);
+        let color;
+        if (n===1) color = colors[0];
+        else if (n===2) color = colors[(r+q)%2];
+        else if (n===3) color = colors[(r+q)%3];
+        else color = colors[r*2 + q];
+        const x = q*tileW, y = r*tileH;
+        ctx.fillStyle = TILE_LINE_COLOR; ctx.fillRect(x, y, tileW, tileH);
+        const iw = Math.max(0, tileW-2), ih = Math.max(0, tileH-2);
         if (iw>0 && ih>0){ ctx.fillStyle = color; ctx.fillRect(x+1, y+1, iw, ih); }
       }
     }
     return { url: c.toDataURL(), pattW: W, pattH: H };
   }
   function applyCompBackground(el){
-    const tileW = parseInt(el.dataset.tileW||'1',10)||1;
-    const tileH = parseInt(el.dataset.tileH||'1',10)||1;
-    const colors = getCompColors(el);
-    const { url, pattW, pattH } = makePatternDataURL(colors, tileW, tileH);
+    const tileW = parseInt(el.dataset.tileW||'1',10), tileH = parseInt(el.dataset.tileH||'1',10);
+    const { url, pattW, pattH } = makePatternDataURL(getCompColors(el), tileW, tileH);
     el.style.backgroundImage = `url("${url}")`;
     el.style.backgroundSize  = `${pattW}px ${pattH}px`;
   }
 
-  // ===== Drag + Snap (con priorità ai bordi tra rettangoli) =====
   function makeDraggable(el){
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
-
     const start = (e)=>{
       e.preventDefault(); e.stopPropagation();
       selectComp(el);
-      const p = getPos(e);
-      const pg = screen.getBoundingClientRect();
-      const pointerWorldX = (p.x - pg.left) / state.scale;
-      const pointerWorldY = (p.y - pg.top)  / state.scale;
-      const curLeft = parseFloat(el.style.left) || 0;
-      const curTop  = parseFloat(el.style.top)  || 0;
-      drag = { offsetX: pointerWorldX - curLeft, offsetY: pointerWorldY - curTop };
-      window.addEventListener('mousemove', move);
-      window.addEventListener('mouseup', end);
-      window.addEventListener('touchmove', move, { passive:false });
-      window.addEventListener('touchend', end);
+      const p = getPos(e), pg = screen.getBoundingClientRect();
+      drag = {
+        offsetX: (p.x - pg.left)/state.scale - (parseFloat(el.style.left)||0),
+        offsetY: (p.y - pg.top)/state.scale - (parseFloat(el.style.top)||0)
+      };
+      window.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+      window.addEventListener('touchmove', move, { passive:false }); window.addEventListener('touchend', end);
     };
-
     const move = (e)=>{
       if(!drag) return; 
       e.preventDefault(); e.stopPropagation();
-
-      const p = getPos(e); 
-      const pg = screen.getBoundingClientRect();
-      const pointerWorldX = (p.x - pg.left) / state.scale;
-      const pointerWorldY = (p.y - pg.top)  / state.scale;
+      const p = getPos(e), pg = screen.getBoundingClientRect();
       const w = el.offsetWidth, h = el.offsetHeight;
-
-      let nx = pointerWorldX - drag.offsetX;
-      let ny = pointerWorldY - drag.offsetY;
-
+      let nx = (p.x - pg.left)/state.scale - drag.offsetX;
+      let ny = (p.y - pg.top)/state.scale - drag.offsetY;
       const comps = [...document.querySelectorAll('.comp')].filter(n=>n!==el);
-
-      // Mobile
-      const Lm = nx, Rm = nx + w, Cm = nx + w/2;
-      const Tm = ny, Bm = ny + h, CmY = ny + h/2;
-
+      const Lm = nx, Rm = nx + w, Tm = ny, Bm = ny + h;
       let snappedX = false, snappedY = false;
-      let bestDX = Infinity, bestNX = nx;
-      let bestDY = Infinity, bestNY = ny;
-
-      const snapX = (curNx, targetX, what)=>{
-        switch(what){
-          case 'L=L': return targetX;
-          case 'R=R': return targetX - w;
-          case 'L=R': return targetX;
-          case 'R=L': return targetX - w;
-          case 'C=C': return Math.round(targetX - w/2);
-          default:    return curNx;
-        }
-      };
-      const snapY = (curNy, targetY, what)=>{
-        switch(what){
-          case 'T=T': return targetY;
-          case 'B=B': return targetY - h;
-          case 'T=B': return targetY;
-          case 'B=T': return targetY - h;
-          case 'C=C': return Math.round(targetY - h/2);
-          default:    return curNy;
-        }
-      };
-
       for (const n of comps){
-        const left = parseFloat(n.style.left)||0;
-        const top  = parseFloat(n.style.top)||0;
+        const left = parseFloat(n.style.left)||0, top = parseFloat(n.style.top)||0;
         const nw = n.offsetWidth, nh = n.offsetHeight;
-
-        const Lt = left, Rt = left+nw, Ct = left+nw/2;
-        const Tt = top,  Bt = top+nh,  CtY= top+nh/2;
-
-        const pairsX = [
-          ['L=L', Math.abs(Lm - Lt),  Lt],
-          ['R=R', Math.abs(Rm - Rt),  Rt],
-          ['L=R', Math.abs(Lm - Rt),  Rt],
-          ['R=L', Math.abs(Rm - Lt),  Lt],
-          ['C=C', Math.abs(Cm - Ct),  Ct],
-        ];
-        for (const [what, dist, tx] of pairsX){
-          if (dist <= SNAP_THRESHOLD_EDGE && dist < bestDX){
-            bestDX = dist; bestNX = snapX(nx, tx, what); snappedX = true;
-          }
-        }
-
-        const pairsY = [
-          ['T=T', Math.abs(Tm - Tt),  Tt],
-          ['B=B', Math.abs(Bm - Bt),  Bt],
-          ['T=B', Math.abs(Tm - Bt),  Bt],
-          ['B=T', Math.abs(Bm - Tt),  Tt],
-          ['C=C', Math.abs(CmY - CtY), CtY],
-        ];
-        for (const [what, dist, ty] of pairsY){
-          if (dist <= SNAP_THRESHOLD_EDGE && dist < bestDY){
-            bestDY = dist; bestNY = snapY(ny, ty, what); snappedY = true;
-          }
-        }
+        const Lt = left, Rt = left+nw, Tt = top, Bt = top+nh;
+        if(Math.abs(Lm - Lt) < SNAP_THRESHOLD_EDGE) { nx = Lt; snappedX=true; }
+        if(Math.abs(Rm - Rt) < SNAP_THRESHOLD_EDGE) { nx = Rt - w; snappedX=true; }
+        if(Math.abs(Tm - Tt) < SNAP_THRESHOLD_EDGE) { ny = Tt; snappedY=true; }
+        if(Math.abs(Bm - Bt) < SNAP_THRESHOLD_EDGE) { ny = Bt - h; snappedY=true; }
       }
-
-      nx = bestNX; ny = bestNY;
-
-      // Snap griglia solo se non abbiamo già snappato quell'asse
-      const tileW = parseInt(el.dataset.tileW || '1', 10) || 1;
-      const tileH = parseInt(el.dataset.tileH || '1', 10) || 1;
-      if (!snappedX){
-        const gx = Math.round(nx / tileW) * tileW;
-        if (Math.abs(nx - gx) <= SNAP_THRESHOLD_GRID) nx = gx;
-      }
-      if (!snappedY){
-        const gy = Math.round(ny / tileH) * tileH;
-        if (Math.abs(ny - gy) <= SNAP_THRESHOLD_GRID) ny = gy;
-      }
-
-      // clamp entro canvas
+      if (!snappedX) { const gx = Math.round(nx / parseInt(el.dataset.tileW,10)) * parseInt(el.dataset.tileW,10); if (Math.abs(nx - gx) <= SNAP_THRESHOLD_GRID) nx = gx; }
+      if (!snappedY) { const gy = Math.round(ny / parseInt(el.dataset.tileH,10)) * parseInt(el.dataset.tileH,10); if (Math.abs(ny - gy) <= SNAP_THRESHOLD_GRID) ny = gy; }
       const {w:cw, h:ch} = getCanvas();
-      nx = Math.max(0, Math.min(cw - w, nx));
-      ny = Math.max(0, Math.min(ch - h, ny));
-
-      nx = Math.round(nx); ny = Math.round(ny);
-      el.style.left = nx + 'px';
-      el.style.top  = ny + 'px';
+      nx = Math.round(Math.max(0, Math.min(cw - w, nx)));
+      ny = Math.round(Math.max(0, Math.min(ch - h, ny)));
+      el.style.left = nx + 'px'; el.style.top = ny + 'px';
       updateOffsetLabels(el);
     };
-
-    const end = ()=>{
-      drag = null;
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', end);
-      window.removeEventListener('touchmove', move);
-      window.removeEventListener('touchend', end);
-    };
-
-    el.addEventListener('mousedown', start);
-    el.addEventListener('touchstart', start, { passive:false });
+    const end = ()=>{ drag = null; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', end); window.removeEventListener('touchmove', move); window.removeEventListener('touchend', end); };
+    el.addEventListener('mousedown', start); el.addEventListener('touchstart', start, { passive:false });
     el.addEventListener('click', (e)=>{ e.stopPropagation(); selectComp(el); });
   }
 
-  // ===== Creazione composizione =====
+  function setNameColor(el, color){
+    el.dataset.nameColor = color;
+    el.querySelector('.name').style.color = color;
+    el.querySelector('.size').style.color = color;
+  }
   function addComposition(){
     const scr = getActiveScreen(); if (!scr) return;
     const name = (compNameInput.value || `Composizione`).trim();
-    const baseCols=8, baseRows=4, baseTW=128, baseTH=128, baseSX=0, baseSY=0;
-    const cols  = Math.max(1, evalIntExpression(colsInput.value,  baseCols) ?? baseCols);
-    const rows  = Math.max(1, evalIntExpression(rowsInput.value,  baseRows) ?? baseRows);
-    const tileW = Math.max(1, evalIntExpression(tileWInput.value, baseTW)   ?? baseTW);
-    const tileH = Math.max(1, evalIntExpression(tileHInput.value, baseTH)   ?? baseTH);
-    let   nx    = Math.max(0, evalIntExpression(startXInput.value, baseSX)  ?? baseSX);
-    let   ny    = Math.max(0, evalIntExpression(startYInput.value, baseSY)  ?? baseSY);
-
-    const w = cols * tileW;
-    const h = rows * tileH;
-
-    const el = document.createElement('div');
-    el.className = 'comp';
-    el.dataset.id = uid();
-    el.style.width = px(w);
-    el.style.height = px(h);
-    el.dataset.tileW = String(tileW);
-    el.dataset.tileH = String(tileH);
-
-    el.dataset.colorCount = tbColorCount.value;
-    el.dataset.c1 = tbCol1.value;
-    el.dataset.c2 = tbCol2.value;
-    el.dataset.c3 = tbCol3.value;
-    el.dataset.c4 = tbCol4.value;
-
-    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
-    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
-    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
-    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
-
+    const cols = Math.max(1, evalIntExpression(colsInput.value, 8) || 8);
+    const rows = Math.max(1, evalIntExpression(rowsInput.value, 4) || 4);
+    const tileW = Math.max(1, evalIntExpression(tileWInput.value, 128) || 128);
+    const tileH = Math.max(1, evalIntExpression(tileHInput.value, 128) || 128);
+    let nx = Math.max(0, evalIntExpression(startXInput.value, 0) || 0);
+    let ny = Math.max(0, evalIntExpression(startYInput.value, 0) || 0);
+    const w = cols*tileW, h = rows*tileH;
+    const el = document.createElement('div'); el.className = 'comp';
+    Object.assign(el.dataset, {id:uid(), tileW, tileH, colorCount:tbColorCount.value, c1:tbCol1.value, c2:tbCol2.value, c3:tbCol3.value, c4:tbCol4.value});
+    el.style.cssText = `width:${px(w)}; height:${px(h)};`;
+    el.innerHTML = `<div class="offset"></div><div class="offsetBR"></div><div class="name">${name}</div><div class="size">${w}×${h}px</div>`;
+    setNameColor(el, tbNameColor.value);
     const {w:cw, h:ch} = scr.canvas;
-    nx = Math.min(cw - w, nx);
-    ny = Math.min(ch - h, ny);
-    el.style.left = px(nx);
-    el.style.top  = px(ny);
-
+    el.style.left = px(Math.min(cw - w, nx)); el.style.top  = px(Math.min(ch - h, ny));
     screen.appendChild(el);
     renderTileLabels(el, cols, rows, tileW, tileH);
-    makeDraggable(el);
-    applyCompBackground(el);
-    updateOffsetLabels(el);
+    makeDraggable(el); applyCompBackground(el); updateOffsetLabels(el); applyNameTransform(el);
     selectComp(el);
   }
 
-  // ===== Toolbar / Rinomina / Duplica / Elimina =====
-  const renameOpen = ()=>{ if(!state.selected) return; const cName = state.selected.querySelector('.name'); renameInput.value = cName?.textContent || ""; document.getElementById('renameModal').style.display='flex'; renameInput.focus(); renameInput.setSelectionRange(0, renameInput.value.length); };
-  const renameClose= ()=>{ document.getElementById('renameModal').style.display='none'; };
+  const renameOpen = ()=>{ if(!state.selected) return; renameInput.value = state.selected.querySelector('.name').textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.select(); };
+  const renameClose= ()=>{ renameModal.style.display='none'; };
   const renameSaveFn = ()=>{ if(!state.selected) return; const v=(renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent=v; fitLabels(state.selected); refreshRecap(); } renameClose(); };
-
   renameBtn.addEventListener('click', renameOpen);
   renameCancel.addEventListener('click', renameClose);
   renameSave.addEventListener('click', renameSaveFn);
-  document.getElementById('renameModal').addEventListener('click', (e)=>{ if(e.target.id==='renameModal') renameClose(); });
+  renameModal.addEventListener('click', (e)=>{ if(e.target===renameModal) renameClose(); });
   renameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') renameSaveFn(); if(e.key==='Escape') renameClose(); });
 
-  document.getElementById('duplicateBtn').addEventListener('click', ()=>{
+  dupBtn.addEventListener('click', ()=>{
     const src = state.selected; if(!src) return;
-    const w = src.offsetWidth, h = src.offsetHeight;
-    const tileW = parseInt(src.dataset.tileW||'1',10)||1;
-    const tileH = parseInt(src.dataset.tileH||'1',10)||1;
-
-    const el = document.createElement('div');
-    el.className = 'comp';
-    el.dataset.id = uid();
-    el.style.width = px(w);
-    el.style.height = px(h);
-    el.dataset.tileW = String(tileW);
-    el.dataset.tileH = String(tileH);
-
-    el.dataset.colorCount = src.dataset.colorCount || '2';
-    el.dataset.c1 = src.dataset.c1 || '#3b82f6';
-    el.dataset.c2 = src.dataset.c2 || '#10b981';
-    el.dataset.c3 = src.dataset.c3 || '#f97316';
-    el.dataset.c4 = src.dataset.c4 || '#ec4899';
-
-    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
-    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
-    const nameEl = document.createElement('div'); nameEl.className = 'name';
-    nameEl.textContent = (src.querySelector('.name')?.textContent || `Composizione`) + ' Copy';
-    el.appendChild(nameEl);
-    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
-
-    let nx = (parseFloat(src.style.left)||0) + 24;
-    let ny = (parseFloat(src.style.top)||0) + 24;
+    const {offsetWidth:w, offsetHeight:h, dataset} = src;
+    const tileW = parseInt(dataset.tileW,10), tileH = parseInt(dataset.tileH,10);
+    const cols = Math.round(w/tileW), rows = Math.round(h/tileH);
+    const el = document.createElement('div'); el.className = 'comp';
+    Object.assign(el.dataset, {...dataset, id:uid()});
+    el.style.cssText = `width:${px(w)}; height:${px(h)};`;
+    const name = (src.querySelector('.name').textContent || 'Composizione') + ' Copy';
+    el.innerHTML = `<div class="offset"></div><div class="offsetBR"></div><div class="name">${name}</div><div class="size">${w}×${h}px</div>`;
+    setNameColor(el, src.dataset.nameColor);
     const {w:cw, h:ch} = getCanvas();
-    nx = Math.min(cw - w, Math.max(0, nx));
-    ny = Math.min(ch - h, Math.max(0, ny));
-    el.style.left = px(nx); el.style.top  = px(ny);
-
+    el.style.left = px(Math.min(cw - w, Math.max(0, (parseFloat(src.style.left)||0) + 24)));
+    el.style.top  = px(Math.min(ch - h, Math.max(0, (parseFloat(src.style.top)||0) + 24)));
     screen.appendChild(el);
     renderTileLabels(el, cols, rows, tileW, tileH);
-    makeDraggable(el);
-    applyCompBackground(el);
-    updateOffsetLabels(el);
+    makeDraggable(el); applyCompBackground(el); updateOffsetLabels(el); applyNameTransform(el);
     selectComp(el);
   });
-
-  document.getElementById('deleteBtn').addEventListener('click', ()=>{
+  delBtn.addEventListener('click', ()=>{
     if(!state.selected) return;
     const next = state.selected.nextElementSibling || state.selected.previousElementSibling;
     state.selected.remove();
     state.selected=null; updateToolbarState(); refreshRecap();
-    if(next){ selectComp(next); }
+    if(next) selectComp(next);
   });
 
-  // ===== Canvas controls (per schermo attivo) =====
   function applyCanvasFromInputs(){
     const scr = getActiveScreen(); if(!scr) return;
-    const newW = Math.max(1, evalIntExpression(canvasWInput.value, scr.canvas.w) || scr.canvas.w);
-    const newH = Math.max(1, evalIntExpression(canvasHInput.value, scr.canvas.h) || scr.canvas.h);
-    scr.canvas.w = newW; scr.canvas.h = newH;
-    applyCanvasSize(newW, newH);
-    canvasWInput.value = String(newW);
-    canvasHInput.value = String(newH);
+    scr.canvas.w = Math.max(1, evalIntExpression(canvasWInput.value, scr.canvas.w) || scr.canvas.w);
+    scr.canvas.h = Math.max(1, evalIntExpression(canvasHInput.value, scr.canvas.h) || scr.canvas.h);
+    applyCanvasSize(scr.canvas.w, scr.canvas.h);
+    canvasWInput.value = String(scr.canvas.w);
+    canvasHInput.value = String(scr.canvas.h);
   }
-  document.getElementById('applyCanvas').addEventListener('click', applyCanvasFromInputs);
+  applyCanvasBtn.addEventListener('click', applyCanvasFromInputs);
   fitBtn.addEventListener('click', fitToViewport);
 
-  // ===== Toolbar palette: visibilità e change =====
-  function updateToolbarColorVisibility(){
-    const n = parseInt(tbColorCount.value,10);
-    document.getElementById('sw3').style.display = n>=3 ? '' : 'none';
-    document.getElementById('sw4').style.display = n>=4 ? '' : 'none';
-  }
+  function updateToolbarColorVisibility(){ sw3.style.display=sw4.style.display = parseInt(tbColorCount.value,10)>2?'':'none'; sw4.style.display=parseInt(tbColorCount.value,10)>3?'':'none'; }
   updateToolbarColorVisibility();
-
   tbColorCount.addEventListener('change', ()=>{
     updateToolbarColorVisibility();
-    if (state.selected){
-      state.selected.dataset.colorCount = tbColorCount.value;
-      applyCompBackground(state.selected);
-    } else {
-      state.defaults.colorCount = parseInt(tbColorCount.value,10);
-    }
+    const target = state.selected || state.defaults;
+    if(state.selected) { target.dataset.colorCount = tbColorCount.value; applyCompBackground(state.selected); }
+    else target.colorCount = parseInt(tbColorCount.value,10);
   });
   [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp, i)=>{
-    const prev = [sw1p,sw2p,sw3p,sw4p][i];
     inp.addEventListener('input', ()=>{
-      prev.style.background = inp.value;
-      if (state.selected){
-        state.selected.dataset['c'+(i+1)] = inp.value;
-        applyCompBackground(state.selected);
-      } else {
-        state.defaults.colors[i] = inp.value;
-      }
+      [sw1p,sw2p,sw3p,sw4p][i].style.background = inp.value;
+      const target = state.selected || state.defaults;
+      if(state.selected) { target.dataset['c'+(i+1)] = inp.value; applyCompBackground(state.selected); }
+      else target.colors[i] = inp.value;
     });
   });
+  tbNameColor.addEventListener('input', ()=>{
+    swNamePrev.style.background = tbNameColor.value;
+    const target = state.selected || state.defaults;
+    if(state.selected) setNameColor(state.selected, tbNameColor.value);
+    else target.nameColor = tbNameColor.value;
+  });
 
-  // ===== Recap =====
+  // Recap
   function getAllComps(){ return [...document.querySelectorAll('.comp')]; }
   function compData(el){
     const w = el.offsetWidth, h = el.offsetHeight;
@@ -828,7 +711,7 @@
       const twEl   = makeEditable('TileW', it.tileW,'tileW', 5);
       const thEl   = makeEditable('TileH', it.tileH,'tileH', 5);
       const xEl    = makeEditable('X', it.x, 'x', 4);
-      const yEl    = makeEditable('Y', it.y, 4);
+      const yEl    = makeEditable('Y', it.y, 'y', 4);
 
       const tot = document.createElement('span'); tot.className='pill'; tot.textContent = `Tot: ${it.w}×${it.h}px`;
 
@@ -903,230 +786,123 @@
     el.style.top  = px(y);
     applyCompBackground(el);
     updateOffsetLabels(el);
-
+    renderTileLabels(el, cols, rows, tileW, tileH);
     selectComp(el);
     refreshRecap();
-    persistCurrentScreen(); // salva modifiche nello schermo
+    persistCurrentScreen();
   }
-
-  // ===== Salva/Carica Progetto (multi-screen) =====
+  
+  // Salva/Carica
   function collectCurrentScreen(){
     const scr = getActiveScreen(); if(!scr) return;
-    const comps = getAllComps().map(el=>{
-      const w = el.offsetWidth, h = el.offsetHeight;
-      const tileW = parseInt(el.dataset.tileW||'1',10)||1;
-      const tileH = parseInt(el.dataset.tileH||'1',10)||1;
-      const cols = Math.round(w / tileW);
-      const rows = Math.round(h / tileH);
-      const x = Math.round(parseFloat(el.style.left)||0);
-      const y = Math.round(parseFloat(el.style.top) ||0);
-      const name = el.querySelector('.name')?.textContent || '';
-      return {
-        id: el.dataset.id || uid(),
-        name, cols, rows, tileW, tileH, x, y,
-        colorCount: parseInt(el.dataset.colorCount||'2',10),
-        colors: [el.dataset.c1, el.dataset.c2, el.dataset.c3, el.dataset.c4]
-      };
+    scr.compositions = getAllComps().map(el=>{
+      const {offsetWidth:w, offsetHeight:h, dataset} = el;
+      return { id:dataset.id, name:el.querySelector('.name').textContent||'', cols:Math.round(w/dataset.tileW), rows:Math.round(h/dataset.tileH), tileW:parseInt(dataset.tileW), tileH:parseInt(dataset.tileH), x:Math.round(parseFloat(el.style.left)||0), y:Math.round(parseFloat(el.style.top)||0), colorCount:parseInt(dataset.colorCount), colors:[dataset.c1,dataset.c2,dataset.c3,dataset.c4], nameColor:dataset.nameColor, nameFontSize:dataset.nameFontSize, nameOffsetX: dataset.nameOffsetX, nameOffsetY: dataset.nameOffsetY };
     });
-    scr.compositions = comps;
   }
   function persistCurrentScreen(){ collectCurrentScreen(); }
-
-  function collectProject(){
-    persistCurrentScreen();
-    return {
-      version: 4,
-      name: (projectNameInput.value||'Progetto').trim(),
-      defaults: {
-        colorCount: parseInt(tbColorCount.value,10),
-        colors: [tbCol1.value, tbCol2.value, tbCol3.value, tbCol4.value]
-      },
-      screens: state.screens
-    };
-  }
-  function saveProject(){
-    const data = collectProject();
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const safeName = (data.name||'progetto').replace(/[^a-z0-9_\-]+/gi,'_').toLowerCase();
-    a.href = url; a.download = `${safeName}.json`; a.click();
-    URL.revokeObjectURL(url);
-  }
-  function clearCanvas(){ getAllComps().forEach(el=> el.remove()); state.selected = null; updateToolbarState(); refreshRecap(); }
-
+  function collectProject(){ persistCurrentScreen(); return {version:5, name:(projectNameInput.value||'Progetto').trim(), defaults:state.defaults, screens:state.screens }; }
+  function saveProject(){ const data=collectProject(); const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${(data.name||'progetto').replace(/[^a-z0-9_\-]+/gi,'_').toLowerCase()}.json`; a.click(); URL.revokeObjectURL(a.href); }
+  function clearCanvas(){ getAllComps().forEach(el=>el.remove()); state.selected = null; updateToolbarState(); refreshRecap(); }
+  
   function createCompFromData(c){
-    const w = c.cols * c.tileW, h = c.rows * c.tileH;
-    const el = document.createElement('div');
-    el.className = 'comp'; el.dataset.id = c.id || uid();
-    el.style.width = px(w); el.style.height = px(h);
-    el.dataset.tileW = String(c.tileW); el.dataset.tileH = String(c.tileH);
-
-    el.dataset.colorCount = String(c.colorCount ?? 2);
-    const arr = c.colors || [];
-    el.dataset.c1 = arr[0] || state.defaults.colors[0];
-    el.dataset.c2 = arr[1] || state.defaults.colors[1];
-    el.dataset.c3 = arr[2] || state.defaults.colors[2];
-    el.dataset.c4 = arr[3] || state.defaults.colors[3];
-
-    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
-    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
-    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = c.name || 'Composizione'; el.appendChild(nameEl);
-    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
-    let nx = Math.max(0, Math.min(getCanvas().w - w, Math.round(c.x||0)));
-    let ny = Math.max(0, Math.min(getCanvas().h - h, Math.round(c.y||0)));
-    el.style.left = px(nx); el.style.top  = px(ny);
+    const w = c.cols*c.tileW, h = c.rows*c.tileH;
+    const el = document.createElement('div'); el.className = 'comp';
+    Object.assign(el.dataset, {id:c.id||uid(), tileW:c.tileW, tileH:c.tileH, colorCount:c.colorCount||2, c1:c.colors?.[0], c2:c.colors?.[1], c3:c.colors?.[2], c4:c.colors?.[3], nameColor:c.nameColor, nameFontSize:c.nameFontSize, nameOffsetX:c.nameOffsetX, nameOffsetY:c.nameOffsetY });
+    el.style.cssText = `width:${px(w)}; height:${px(h)}; left:${px(c.x)}; top:${px(c.y)}`;
+    el.innerHTML = `<div class="offset"></div><div class="offsetBR"></div><div class="name">${c.name||'Composizione'}</div><div class="size">${w}×${h}px</div>`;
+    setNameColor(el, c.nameColor || state.defaults.nameColor);
     screen.appendChild(el);
-    renderTileLabels(el, cols, rows, tileW, tileH);
-    makeDraggable(el); applyCompBackground(el); updateOffsetLabels(el);
+    renderTileLabels(el, c.cols, c.rows, c.tileW, c.tileH);
+    makeDraggable(el); applyCompBackground(el); updateOffsetLabels(el); applyNameTransform(el);
   }
-
   function loadScreenIntoDOM(screenObj){
-    // applica canvas
     applyCanvasSize(screenObj.canvas.w, screenObj.canvas.h);
-    canvasWInput.value = String(screenObj.canvas.w);
-    canvasHInput.value = String(screenObj.canvas.h);
-    // svuota composizioni e ricarica
+    canvasWInput.value = screenObj.canvas.w; canvasHInput.value = screenObj.canvas.h;
     clearCanvas();
     (screenObj.compositions||[]).forEach(createCompFromData);
     refreshRecap();
   }
-
   function loadProjectFromObject(obj){
     if (!obj || typeof obj !== 'object') return;
-
-    // defaults palette globali
-    if (obj.defaults){
-      const n = Math.max(1, Math.min(4, parseInt(obj.defaults.colorCount||2,10)));
-      tbColorCount.value = String(n);
-      updateToolbarColorVisibility();
-      const arr = obj.defaults.colors || [];
-      [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp,i)=>{
-        if (arr[i]) inp.value = arr[i];
-        [sw1p,sw2p,sw3p,sw4p][i].style.background = inp.value;
-      });
-      state.defaults.colorCount = n;
-      state.defaults.colors = [tbCol1.value, tbCol2.value, tbCol3.value, tbCol4.value];
-    }
-
-    state.screens = Array.isArray(obj.screens) && obj.screens.length
-      ? obj.screens.map(s=>({
-          id: s.id || uid(),
-          name: s.name || 'Schermo',
-          canvas: { w: Math.max(1, parseInt(s.canvas?.w||1920,10)), h: Math.max(1, parseInt(s.canvas?.h||1080,10)) },
-          compositions: Array.isArray(s.compositions) ? s.compositions : []
-        }))
-      : [{
-          id: uid(),
-          name: 'Schermo 1',
-          canvas: { w: 1920, h: 1080 },
-          compositions: []
-        }];
-
+    Object.assign(state.defaults, obj.defaults);
+    state.screens = obj.screens || [{ id: uid(), name: 'Schermo 1', canvas: { w: 1920, h: 1080 }, compositions: [] }];
     projectNameInput.value = obj.name || '';
-
-    if (!state.activeScreenId) state.activeScreenId = state.screens[0].id;
+    state.activeScreenId = state.screens[0]?.id;
     updateScreenSelect();
-    const cur = getActiveScreen();
-    loadScreenIntoDOM(cur);
+    if (getActiveScreen()) loadScreenIntoDOM(getActiveScreen());
   }
-
-  saveBtn.addEventListener('click', saveProject);
-  loadFile.addEventListener('change', (e)=>{
-    const file = e.target.files?.[0]; if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev)=>{
-      try { const obj = JSON.parse(String(ev.target?.result||'{}')); loadProjectFromObject(obj); }
-      catch(err){ alert('File non valido.'); }
-    };
-    reader.readAsText(file); e.target.value = '';
-  });
-
-  // ===== Schermi: select + nuovo =====
   function getActiveScreen(){ return state.screens.find(s=> s.id===state.activeScreenId) || null; }
   function updateScreenSelect(){
-    screenSelect.innerHTML = '';
-    state.screens.forEach(s=>{
-      const opt = document.createElement('option');
-      opt.value = s.id; opt.textContent = `${s.name} (${s.canvas.w}×${s.canvas.h})`;
-      screenSelect.appendChild(opt);
-    });
-    if (!state.screens.find(s=> s.id===state.activeScreenId) && state.screens[0]) {
-      state.activeScreenId = state.screens[0].id;
-    }
+    screenSelect.innerHTML = state.screens.map(s => `<option value="${s.id}">${s.name} (${s.canvas.w}×${s.canvas.h})</option>`).join('');
+    if (!state.screens.find(s=> s.id===state.activeScreenId) && state.screens[0]) state.activeScreenId = state.screens[0].id;
     screenSelect.value = state.activeScreenId || (state.screens[0]?.id || '');
   }
 
-  screenSelect.addEventListener('change', ()=>{
-    const newId = screenSelect.value;
-    if (!newId || newId === state.activeScreenId) return;
-    // salva schermo corrente
-    persistCurrentScreen();
-    state.activeScreenId = newId;
-    // carica nuovo schermo
-    const scr = getActiveScreen(); if (scr) loadScreenIntoDOM(scr);
-  });
-
-  newScreenBtn.addEventListener('click', ()=>{
-    // salva corrente
-    persistCurrentScreen();
-    const baseW = getCanvas().w, baseH = getCanvas().h;
-    const name = prompt('Nome nuovo schermo:', `Schermo ${state.screens.length+1}`) || `Schermo ${state.screens.length+1}`;
-    const wIn = prompt('Larghezza (px):', String(baseW)) || String(baseW);
-    const hIn = prompt('Altezza (px):',   String(baseH)) || String(baseH);
-    const w = Math.max(1, parseInt(wIn,10) || baseW);
-    const h = Math.max(1, parseInt(hIn,10) || baseH);
-
-    const scr = { id: uid(), name, canvas:{w,h}, compositions:[] };
-    state.screens.push(scr);
-    state.activeScreenId = scr.id;
-    updateScreenSelect();
-    loadScreenIntoDOM(scr);
-  });
-
-  // ===== Utility per selezione recap / edit =====
-  function yElFix(e){ /* placeholder se servisse */ }
-
-  function selectById(id){
-    const el = getAllComps().find(n=> n.dataset.id===id);
-    if (el) selectComp(el);
-    highlightRecapSelection();
-  }
-
-  function highlightRecapSelection(){
-    const idSel = state.selected?.dataset.id;
-    recap.querySelectorAll('.recap-item').forEach(r=>{
-      r.classList.toggle('selected', r.dataset.id===idSel);
+  // Funzione per rendere i valori editabili
+  function setupEditableValue(valueSpan, slider) {
+    let lastValidValue = '';
+    valueSpan.addEventListener('focus', () => {
+        lastValidValue = slider.value;
+        setTimeout(() => {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(valueSpan);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }, 0);
+    });
+    const updateFromInput = () => {
+        const text = valueSpan.textContent || '';
+        const newValue = parseInt(text, 10);
+        if (!isNaN(newValue) && newValue >= parseInt(slider.min) && newValue <= parseInt(slider.max)) {
+            slider.value = newValue;
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+        } else {
+            valueSpan.textContent = lastValidValue + 'px';
+        }
+    };
+    valueSpan.addEventListener('blur', updateFromInput);
+    valueSpan.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            valueSpan.blur();
+        } else if (e.key === 'Escape') {
+            valueSpan.textContent = lastValidValue + 'px';
+            valueSpan.blur();
+        }
     });
   }
 
-  // ===== Aggiungi composizione =====
+  // Eventi e Boot
+  saveBtn.addEventListener('click', saveProject);
+  loadFile.addEventListener('change', (e)=>{ const file = e.target.files?.[0]; if(!file) return; const reader=new FileReader(); reader.onload=(ev)=>{ try{const obj=JSON.parse(String(ev.target?.result||'{}')); loadProjectFromObject(obj);}catch(err){alert('File non valido.');}}; reader.readAsText(file); e.target.value=''; });
   addCompBtn.addEventListener('click', ()=>{ addComposition(); persistCurrentScreen(); });
-
-  // ===== Interazioni canvas/viewport =====
   screen.addEventListener('click', ()=>{ clearSelection(); });
-  new ResizeObserver(()=>fitToViewport()).observe(viewport);
+  new ResizeObserver(fitToViewport).observe(viewport);
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
+  
+  toggleFontSizeBtn.addEventListener('click', (e) => { e.stopPropagation(); if(toggleFontSizeBtn.disabled) return; fontSizePopup.classList.toggle('visible'); });
+  fontSizeSlider.addEventListener('input', ()=>{ if (!state.selected) return; const size=fontSizeSlider.value; state.selected.dataset.nameFontSize = size; state.selected.querySelector('.name').style.fontSize = size + 'px'; fontSizeValue.textContent = size + 'px'; });
+  nameOffsetXSlider.addEventListener('input', ()=>{ if (!state.selected) return; const val=nameOffsetXSlider.value; state.selected.dataset.nameOffsetX = val; nameOffsetXValue.textContent = val + 'px'; applyNameTransform(state.selected); });
+  nameOffsetYSlider.addEventListener('input', ()=>{ if (!state.selected) return; const val=nameOffsetYSlider.value; state.selected.dataset.nameOffsetY = val; nameOffsetYValue.textContent = val + 'px'; applyNameTransform(state.selected); });
+  window.addEventListener('click', (e) => { if (!fontSizePopup.contains(e.target) && e.target !== toggleFontSizeBtn) fontSizePopup.classList.remove('visible'); });
+  
+  (function init(){
+    state.screens = [{id: uid(), name: 'Schermo 1', canvas: { w:1920, h:1080 }, compositions: []}];
+    state.activeScreenId = state.screens[0].id;
+    updateScreenSelect();
+    applyCanvasSize(1920,1080);
+    canvasWInput.value = '1920'; canvasHInput.value = '1080';
+    refreshRecap(); updateToolbarState();
 
-  // ===== Boot =====
-  // progetto iniziale con 1 schermo
-  state.screens = [{
-    id: uid(),
-    name: 'Schermo 1',
-    canvas: { w:1920, h:1080 },
-    compositions: []
-  }];
-  state.activeScreenId = state.screens[0].id;
-  updateScreenSelect();
-  applyCanvasSize(1920,1080);
-  canvasWInput.value = '1920';
-  canvasHInput.value = '1080';
-  refreshRecap();
-  updateToolbarState();
+    setupEditableValue(fontSizeValue, fontSizeSlider);
+    setupEditableValue(nameOffsetXValue, nameOffsetXSlider);
+    setupEditableValue(nameOffsetYValue, nameOffsetYSlider);
+  })();
+  
 })();
 
-// === Tile labels (colonna-riga) ===
 function renderTileLabels(el, cols, rows, tileW, tileH){
   el.querySelectorAll('.tile-label').forEach(n=>n.remove());
   const fs = Math.max(9, Math.floor(Math.min(tileW, tileH) * 0.28));
@@ -1142,10 +918,9 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
     }
   }
 }
-
 </script>
+
 <script>
-  /* ===== EXPORT PNG MULTI-SCHERMO — compatibile iPhone, include testi/etichette/outline ===== */
   (function(){
     function safeName(s){
       return String(s||'').trim().replace(/[^a-z0-9_\-]+/gi,'_').replace(/^_+|_+$/g,'').toLowerCase() || 'screen';
@@ -1169,18 +944,25 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
       const h=parseInt(screenEl.style.height,10) || screenEl.offsetHeight || 0;
       if(!w || !h) return null;
       const comps=[...screenEl.querySelectorAll('.comp')].map(el=>{
-        const x=Math.round(parseFloat(el.style.left)||0);
-        const y=Math.round(parseFloat(el.style.top)||0);
-        const tileW=Math.max(1, parseInt(el.dataset.tileW||'1',10));
-        const tileH=Math.max(1, parseInt(el.dataset.tileH||'1',10));
+        const { dataset } = el;
+        const tileW=Math.max(1, parseInt(dataset.tileW||'1',10));
+        const tileH=Math.max(1, parseInt(dataset.tileH||'1',10));
         const cw  = el.offsetWidth;
         const ch  = el.offsetHeight;
         const cols=Math.max(1, Math.round(cw / tileW));
         const rows=Math.max(1, Math.round(ch / tileH));
-        const colorCount=Math.max(1, Math.min(4, parseInt(el.dataset.colorCount||el.dataset.colorcount||'2',10)));
-        const colors=[el.dataset.c1, el.dataset.c2, el.dataset.c3, el.dataset.c4];
-        const name=el.querySelector('.name')?.textContent || 'Composizione';
-        return { x,y, cols,rows, tileW,tileH, colorCount, colors, name };
+        return {
+          x: Math.round(parseFloat(el.style.left)||0),
+          y: Math.round(parseFloat(el.style.top)||0),
+          cols, rows, tileW, tileH,
+          colorCount: Math.max(1, Math.min(4, parseInt(dataset.colorCount||'2',10))),
+          colors: [dataset.c1, dataset.c2, dataset.c3, dataset.c4],
+          name: el.querySelector('.name')?.textContent || 'Composizione',
+          nameColor: dataset.nameColor || '#ffffff',
+          nameFontSize: dataset.nameFontSize,
+          nameOffsetX: dataset.nameOffsetX,
+          nameOffsetY: dataset.nameOffsetY
+        };
       });
       return { name:'screen', canvas:{w,h}, compositions: comps };
     }
@@ -1194,18 +976,12 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
       try{ lineColor = getComputedStyle(document.documentElement).getPropertyValue('--tileLine').trim() || lineColor; }catch(e){}
       (scr.compositions||[]).forEach(comp=>{
         const x=Math.round(comp.x||0), y=Math.round(comp.y||0);
-        const cols=Math.max(1, parseInt(comp.cols,10)||1);
-        const rows=Math.max(1, parseInt(comp.rows,10)||1);
-        const tileW=Math.max(1, parseInt(comp.tileW,10)||1);
-        const tileH=Math.max(1, parseInt(comp.tileH,10)||1);
+        const {cols, rows, tileW, tileH} = comp;
         const rectW = cols*tileW, rectH = rows*tileH;
-
-        const count=Math.max(1, Math.min(4, parseInt(comp.colorCount||(defaults&&defaults.colorCount)||2,10)));
-        const base=(defaults&&defaults.colors) || ['#3b82f6','#10b981','#f97316','#ec4899'];
+        const count = comp.colorCount || 2;
+        const base = (defaults&&defaults.colors) || ['#3b82f6','#10b981','#f97316','#ec4899'];
         const pal=(comp.colors||[]).map((c,i)=> c || base[i]).slice(0,count);
-        while(pal.length<count) pal.push(base[pal.length] || '#fff');
-
-        // Tiles con bordo interno 1px + scacchiera + etichette riga-colonna
+        
         for(let r=0;r<rows;r++){
           for(let c=0;c<cols;c++){
             let col=pal[0];
@@ -1215,11 +991,7 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
             const tx=x + c*tileW, ty=y + r*tileH;
             ctx.fillStyle=lineColor; ctx.fillRect(tx, ty, tileW, tileH);
             const iw=Math.max(0,tileW-2), ih=Math.max(0,tileH-2);
-            ctx.fillStyle=col;
-            if(iw>0 && ih>0) ctx.fillRect(tx+1, ty+1, iw, ih);
-            else ctx.fillRect(tx, ty, tileW, tileH);
-
-            // etichetta riga-colonna
+            if(iw>0 && ih>0){ ctx.fillStyle=col; ctx.fillRect(tx+1, ty+1, iw, ih); }
             const fs = Math.max(9, Math.min(28, Math.floor(Math.min(tileW, tileH)*0.28)));
             ctx.font = `bold ${fs}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
             ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -1229,39 +1001,45 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
           }
         }
 
-        // Bordo esterno bianco 3px (interno)
         const outline=3;
         ctx.fillStyle='#fff';
-        ctx.fillRect(x, y, rectW, outline);
-        ctx.fillRect(x, y+rectH-outline, rectW, outline);
-        ctx.fillRect(x, y, outline, rectH);
-        ctx.fillRect(x+rectW-outline, y, outline, rectH);
+        ctx.fillRect(x, y, rectW, outline); ctx.fillRect(x, y+rectH-outline, rectW, outline);
+        ctx.fillRect(x, y, outline, rectH); ctx.fillRect(x+rectW-outline, y, outline, rectH);
 
-        // Testi centrali + offset TL/BR (BR -1)
         const name = comp.name || '';
+        const nameCol = comp.nameColor || '#ffffff';
         const sizeTxt = `${rectW}×${rectH}px`;
         const offTL = `(${x},${y})`;
-        const offBRX = Math.max(0, x + rectW - 1);
-        const offBRY = Math.max(0, y + rectH - 1);
-        const offBR = `(${offBRX},${offBRY})`;
+        const offBR = `(${x + rectW - 1},${y + rectH - 1})`;
+        
+        const centerX = x + rectW/2;
+        const nameBaseY = y + rectH / 2;
+        const sizeBaseY = y + rectH - (tileH / 2);
 
-        const centerX = x + rectW/2, centerY = y + rectH/2;
-        const pad=8, nameMaxW=rectW-pad*2, nameMaxH=rectH*0.34;
-        ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#fff'; ctx.shadowColor='#000'; ctx.shadowBlur=4;
-        const nameSize = fitFont(ctx, name, nameMaxW, nameMaxH, 72);
-        ctx.fillText(name, centerX, centerY - nameSize*0.2);
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillStyle=nameCol; ctx.shadowColor='#000'; ctx.shadowBlur=4;
+        
+        const nameSize = comp.nameFontSize ? parseInt(comp.nameFontSize, 10) : fitFont(ctx, name, rectW-16, (rectH - tileH) * 0.8, 72);
+        ctx.font = `bold ${nameSize}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+        const finalNameX = centerX + (parseInt(comp.nameOffsetX, 10) || 0);
+        const verticalCorrection = nameSize * 0.1;
+        const nudge = -4; // Corrisponde al nudge dell'anteprima
+        const finalNameY = nameBaseY + ((parseInt(comp.nameOffsetY, 10) || 0) * -1) + verticalCorrection + nudge;
+        ctx.fillText(name, finalNameX, finalNameY);
 
         ctx.shadowBlur=3;
         const sizeFont = Math.max(10, Math.floor(nameSize*0.45));
         ctx.font = `bold ${sizeFont}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
-        ctx.fillText(sizeTxt, centerX, centerY + nameSize*0.6);
+        ctx.fillText(sizeTxt, centerX, sizeBaseY);
 
         const offMax = Math.max(10, Math.min(24, Math.floor(rectH*0.12)));
-        ctx.textAlign='left'; ctx.textBaseline='top';
+        ctx.fillStyle='#fff'; ctx.shadowColor='#000'; ctx.shadowBlur=2;
         fitFont(ctx, offTL, rectW*0.5, offMax, offMax);
-        ctx.fillText(offTL, x+6, y+6);
-        ctx.textAlign='right'; ctx.textBaseline='bottom';
+        ctx.textAlign='left'; ctx.textBaseline='top';
+        // MODIFICA: Spostato offset più in basso nell'export
+        ctx.fillText(offTL, x+6, y+30);
         fitFont(ctx, offBR, rectW*0.5, offMax, offMax);
+        ctx.textAlign='right'; ctx.textBaseline='bottom';
         ctx.fillText(offBR, x+rectW-6, y+rectH-6);
         ctx.shadowBlur=0;
       });
@@ -1269,25 +1047,15 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
     }
 
     function exportPNGs(){
-      let proj=null;
-      if(typeof persistCurrentScreen==='function') persistCurrentScreen();
-      if(typeof collectProject==='function') proj=collectProject();
-      if(!proj || !Array.isArray(proj.screens) || proj.screens.length===0){
-        const domScreen=collectFromDOM();
-        if(!domScreen){ alert('Nessuno schermo da esportare.'); return; }
-        proj={ name:'progetto', screens:[domScreen] };
-      }
+      let proj;
+      if(typeof collectProject ==='function') proj=collectProject();
+      else proj = { name:'progetto', screens:[collectFromDOM()] };
+      
+      if(!proj || !proj.screens || proj.screens.length === 0){ alert('Nessuno schermo da esportare.'); return; }
       const projName=safeName(proj.name||'progetto');
-      const defaults={
-        colorCount: parseInt(document.getElementById('tbColorCount')?.value || '2',10),
-        colors:[
-          document.getElementById('tbCol1')?.value || '#3b82f6',
-          document.getElementById('tbCol2')?.value || '#10b981',
-          document.getElementById('tbCol3')?.value || '#f97316',
-          document.getElementById('tbCol4')?.value || '#ec4899',
-        ],
-      };
+      const defaults = proj.defaults || {};
       const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+      
       proj.screens.forEach((scr,idx)=>{
         const can=drawScreenToCanvas(scr, defaults);
         const filename=`${projName}_${safeName(scr.name||('screen_'+(idx+1)))}_${scr.canvas.w}x${scr.canvas.h}.png`;
@@ -1296,19 +1064,14 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
           const win=window.open();
           if(win){
             win.document.title=filename;
-            const img=new Image(); img.src=dataURL; img.alt=filename;
-            img.style='display:block;max-width:100%;height:auto;background:#000';
+            const img=new Image(); img.src=dataURL; img.style='display:block;max-width:100%;height:auto;background:#000';
             win.document.body.style.margin='0'; win.document.body.style.background='#000';
             win.document.body.appendChild(img);
-          } else {
-            window.location.href=dataURL;
           }
         } else {
           can.toBlob((blob)=>{
             if(!blob) return;
-            const a=document.createElement('a');
-            a.href=URL.createObjectURL(blob);
-            a.download=filename;
+            const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename;
             document.body.appendChild(a); a.click();
             setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
           }, 'image/png');
@@ -1316,11 +1079,10 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
       });
     }
 
-    // collega bottone se presente
     const btn=document.getElementById('exportBtn');
     if(btn) btn.addEventListener('click', (e)=>{ e.preventDefault(); exportPNGs(); });
-    // esponi funzione per altri handler
-    window.exportPNGs = exportPNGs;
   })();
-</script></body>
+</script>
+
+</body>
 </html>
