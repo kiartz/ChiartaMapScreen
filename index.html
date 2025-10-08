@@ -15,7 +15,8 @@
     #work { flex:1; display:flex; flex-direction:column; gap:10px; }
 
     /* Viewport / Canvas */
-    #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; }
+    #viewport { position:relative; flex:1; overflow:hidden; border-radius:12px; border:1px solid var(--border); background:#0a0b0f; cursor: grab; }
+    #viewport:active { cursor: grabbing; }
     #screenWrap { position:absolute; left:0; top:0; transform-origin: top left; touch-action:none; }
     #screen {
       position:absolute; left:10px; top:10px;
@@ -27,11 +28,20 @@
         linear-gradient(to right, #181c24 1px, transparent 1px),
         linear-gradient(to bottom, #181c24 1px, transparent 1px);
       background-size:100px 100px, 100px 100px; }
+    
+    #selectionBox {
+      position: absolute;
+      border: 1px solid var(--acc);
+      background: rgba(69, 184, 255, 0.2);
+      z-index: 10;
+      pointer-events: none;
+      display: none;
+    }
 
     /* Composizioni */
     .comp {
       position:absolute; z-index:2; box-sizing:border-box;
-      cursor:grab; touch-action:none; user-select:none;
+      cursor:pointer; touch-action:none; user-select:none;
       display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column;
       box-shadow: inset 0 0 0 3px var(--acc);
       padding: 4px 8px;
@@ -95,6 +105,9 @@
     .swatch input[type=color]{ position:absolute; inset:0; opacity:0; cursor:pointer; }
     .swatch .preview{ position:absolute; inset:0; border-radius:6px; }
 
+    .zoom-controls { display:flex; align-items:center; gap:4px; }
+    .zoom-controls button { padding: 4px 8px; font-size: 14px; font-weight: bold; }
+
     /* Stili per i Popup della Toolbar */
     .popup-container { position: relative; }
     .popup {
@@ -143,7 +156,7 @@
     }
 
     /* Stili Recap e Modal */
-    #recap { max-height:280px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; }
+    #recap { max-height:280px; overflow:auto; border:1px dashed var(--border); border-radius:10px; padding:8px; scroll-behavior: smooth; }
     .recap-item { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:6px 8px; border-radius:8px; }
     .recap-item:hover { background:#101318; }
     .recap-item.selected { outline:1px solid #3578ff; background:#0d1320; }
@@ -164,6 +177,15 @@
       pointer-events:none;
       user-select:none;
       white-space:nowrap;
+    }
+    
+    #version {
+        position: fixed;
+        bottom: 8px;
+        left: 12px;
+        font-size: 11px;
+        color: var(--muted);
+        opacity: 0.5;
     }
   </style>
 </head>
@@ -266,6 +288,12 @@
 
           <span class="divider"></span>
           <div class="spacer"></div>
+
+          <div class="zoom-controls">
+            <button id="zoomOutBtn" class="secondary">-</button>
+            <button id="zoomInBtn" class="secondary">+</button>
+          </div>
+
           <div class="screen-ctrl" title="Gestione schermi">
             <select id="screenSelect" aria-label="Schermo"></select>
             <button id="newScreenBtn" title="Nuovo schermo">Nuovo</button>
@@ -281,7 +309,12 @@
           </div>
         </div>
 
-        <div id="viewport"><div id="screenWrap"><div id="screen"></div></div></div>
+        <div id="viewport">
+            <div id="screenWrap">
+                <div id="screen"></div>
+            </div>
+            <div id="selectionBox"></div>
+        </div>
       </div>
     </section>
   </main>
@@ -302,6 +335,7 @@
     <div style="color:#9aa4af; font-size:12px; padding:8px 12px">
       Multi-Screen • Drag fluido • Snap tra rettangoli (prioritario) + griglia (secondaria) • Bordi interni 3px • Linee mattonelle 2px • Auto-fit testo • Offset TL/BR • Recap modificabile • Calcoli inline • Salva/Carica JSON • Palette 1–4 colori in toolbar • Colore nome personalizzabile.
     </div>
+    <div id="version">V 0.6.8.0</div>
   </footer>
 
 <script>
@@ -325,7 +359,9 @@
   // Stato
   const state = { 
     scale: 1, 
-    selected: null, 
+    panX: 0,
+    panY: 0,
+    selected: [],
     defaults: { colorCount:2, colors:['#3b82f6','#10b981','#f97316','#ec4899'], nameColor:'#ffffff' }, 
     screens: [], 
     activeScreenId: null,
@@ -333,6 +369,11 @@
   };
   window.state = state;
   window.collectProject = collectProject;
+  
+  let marquee = null;
+  let isPanning = false;
+  let lastPanX, lastPanY;
+  let lastPinchDist = 0;
   
   const SNAP_THRESHOLD_EDGE = 12;
   const SNAP_THRESHOLD_GRID = 8;
@@ -344,6 +385,7 @@
   const viewport = document.getElementById('viewport');
   const screenWrap = document.getElementById('screenWrap');
   const screen = document.getElementById('screen');
+  const selectionBox = document.getElementById('selectionBox');
   const projectNameInput = document.getElementById('projectName');
   const saveBtn = document.getElementById('saveBtn');
   const loadFile = document.getElementById('loadFile');
@@ -375,6 +417,8 @@
   const recap = document.getElementById('recap');
   const screenSelect = document.getElementById('screenSelect');
   const newScreenBtn = document.getElementById('newScreenBtn');
+  const zoomInBtn = document.getElementById('zoomInBtn');
+  const zoomOutBtn = document.getElementById('zoomOutBtn');
   // DOM per i popup
   const toggleFontSizeBtn = document.getElementById('toggleFontSizeBtn');
   const fontSizePopup = document.getElementById('fontSizePopup');
@@ -389,12 +433,32 @@
 
   // Funzioni
   function applyCanvasSize(w,h){ screen.style.width = px(w); screen.style.height = px(h); fitToViewport(); clampAllComps(); }
-  function fitToViewport(){
-    const vw = viewport.clientWidth - 16, vh = viewport.clientHeight - 16;
-    const sx = vw / (getCanvas().w + 20), sy = vh / (getCanvas().h + 20);
-    state.scale = Math.min(sx, sy, 1);
-    screenWrap.style.transform = `translateZ(0) scale(${state.scale})`;
+  
+  function updateTransform() {
+    screenWrap.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
   }
+  
+  function fitToViewport(){
+    const vw = viewport.clientWidth - 16;
+    const vh = viewport.clientHeight - 16;
+    const sx = vw / getCanvas().w;
+    const sy = vh / getCanvas().h;
+    state.scale = Math.min(sx, sy, 1);
+    state.panX = 0;
+    state.panY = 0;
+    updateTransform();
+  }
+  
+  function applyZoom(delta, centerX, centerY) {
+      const oldScale = state.scale;
+      state.scale *= delta;
+      state.scale = Math.max(0.1, Math.min(5, state.scale));
+      const scaleChange = state.scale - oldScale;
+      state.panX -= (centerX - state.panX) * (scaleChange / oldScale);
+      state.panY -= (centerY - state.panY) * (scaleChange / oldScale);
+      updateTransform();
+  }
+
   function getCanvas() { return getActiveScreen()?.canvas || {w:1920,h:1080}; }
   function clampAllComps(){
     const {w:cw, h:ch} = getCanvas();
@@ -408,28 +472,57 @@
     });
   }
 
-  function selectComp(el){
-    if (state.selected && state.selected !== el) state.selected.classList.remove('selected');
-    state.selected = el;
-    if (state.selected) {
-      state.selected.classList.add('selected');
-      tbColorCount.value = String(parseInt(state.selected.dataset.colorCount || state.defaults.colorCount,10));
-      const cols = getCompColors(state.selected);
+  // ===== Funzioni di Selezione Multipla =====
+  function setSelection(els) {
+    clearSelection(true); 
+    state.selected = Array.isArray(els) ? els : [els];
+    state.selected.forEach(el => el.classList.add('selected'));
+    updateUIForSelection();
+  }
+  function addToSelection(el) {
+    if (!state.selected.includes(el)) {
+      state.selected.push(el);
+      el.classList.add('selected');
+      updateUIForSelection();
+    }
+  }
+  function removeFromSelection(el) {
+    state.selected = state.selected.filter(e => e !== el);
+    el.classList.remove('selected');
+    updateUIForSelection();
+  }
+  function clearSelection(silent = false) {
+    state.selected.forEach(el => el.classList.remove('selected'));
+    state.selected = [];
+    if (!silent) updateUIForSelection();
+  }
+  function selectAll() {
+    setSelection(getAllComps());
+  }
+  function getPrimarySelection() {
+    return state.selected.length > 0 ? state.selected[state.selected.length - 1] : null;
+  }
+
+  function updateUIForSelection() {
+    const primary = getPrimarySelection();
+    if (primary) {
+      tbColorCount.value = String(parseInt(primary.dataset.colorCount || state.defaults.colorCount,10));
+      const cols = getCompColors(primary);
       [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp,i)=>{ const v=cols[i]||state.defaults.colors[i]; inp.value=v; [sw1p,sw2p,sw3p,sw4p][i].style.background=v; });
       updateToolbarColorVisibility();
-      tbNameColor.value = state.selected.dataset.nameColor || state.defaults.nameColor;
+      tbNameColor.value = primary.dataset.nameColor || state.defaults.nameColor;
       swNamePrev.style.background = tbNameColor.value;
 
-      const nameEl = state.selected.querySelector('.name');
-      const currentSize = state.selected.dataset.nameFontSize || Math.round(parseFloat(window.getComputedStyle(nameEl).fontSize));
+      const nameEl = primary.querySelector('.name');
+      const currentSize = primary.dataset.nameFontSize || Math.round(parseFloat(window.getComputedStyle(nameEl).fontSize));
       fontSizeSlider.value = currentSize;
       fontSizeValue.textContent = currentSize + 'px';
       
-      const offsetX = state.selected.dataset.nameOffsetX || 0;
+      const offsetX = primary.dataset.nameOffsetX || 0;
       nameOffsetXSlider.value = offsetX;
       nameOffsetXValue.textContent = offsetX + 'px';
 
-      const offsetY = state.selected.dataset.nameOffsetY || 0;
+      const offsetY = primary.dataset.nameOffsetY || 0;
       nameOffsetYSlider.value = offsetY;
       nameOffsetYValue.textContent = offsetY + 'px';
 
@@ -438,14 +531,24 @@
     }
     updateToolbarState();
     highlightRecapSelection();
+
+    if (primary) {
+      const primaryId = primary.dataset.id;
+      const recapItem = recap.querySelector(`.recap-item[data-id="${primaryId}"]`);
+      if (recapItem) {
+        recapItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
   }
-  function clearSelection(){ 
-      if(state.selected){ state.selected.classList.remove('selected'); state.selected=null; updateToolbarState(); highlightRecapSelection(); } 
-  }
+  
   function updateToolbarState(){
-    const has = !!state.selected;
-    [dupBtn, delBtn, renameBtn, toggleFontSizeBtn].forEach(btn => btn.disabled = !has);
-    if (!has) fontSizePopup.classList.remove('visible');
+    const count = state.selected.length;
+    dupBtn.disabled = count === 0;
+    delBtn.disabled = count === 0;
+    renameBtn.disabled = count !== 1;
+    toggleFontSizeBtn.disabled = count === 0;
+
+    if (count === 0) fontSizePopup.classList.remove('visible');
   }
 
   const _measureCanvas = document.createElement('canvas');
@@ -561,47 +664,113 @@
   function makeDraggable(el){
     let drag = null;
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
+    
     const start = (e)=>{
-      e.preventDefault(); e.stopPropagation();
-      selectComp(el);
-      const p = getPos(e), pg = screen.getBoundingClientRect();
+      if (e.button === 1) return; // Ignora il tasto centrale per il drag
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.shiftKey) {
+        state.selected.includes(el) ? removeFromSelection(el) : addToSelection(el);
+      } else {
+        if (!state.selected.includes(el)) {
+          setSelection(el);
+        }
+      }
+      
+      const p = getPos(e);
+      const pg = screen.getBoundingClientRect();
+      const pointerWorldX = (p.x - pg.left) / state.scale;
+      const pointerWorldY = (p.y - pg.top) / state.scale;
+
       drag = {
-        offsetX: (p.x - pg.left)/state.scale - (parseFloat(el.style.left)||0),
-        offsetY: (p.y - pg.top)/state.scale - (parseFloat(el.style.top)||0)
+        initialPositions: new Map(state.selected.map(comp => [comp, { x: parseFloat(comp.style.left) || 0, y: parseFloat(comp.style.top) || 0 }])),
+        draggedComp: el,
+        clickOffsetX: pointerWorldX - (parseFloat(el.style.left) || 0),
+        clickOffsetY: pointerWorldY - (parseFloat(el.style.top) || 0)
       };
-      window.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
-      window.addEventListener('touchmove', move, { passive:false }); window.addEventListener('touchend', end);
+      
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+      window.addEventListener('touchmove', move, { passive: false });
+      window.addEventListener('touchend', end);
     };
+
     const move = (e)=>{
       if(!drag) return; 
       e.preventDefault(); e.stopPropagation();
       const p = getPos(e), pg = screen.getBoundingClientRect();
-      const w = el.offsetWidth, h = el.offsetHeight;
-      let nx = (p.x - pg.left)/state.scale - drag.offsetX;
-      let ny = (p.y - pg.top)/state.scale - drag.offsetY;
-      const comps = [...document.querySelectorAll('.comp')].filter(n=>n!==el);
-      const Lm = nx, Rm = nx + w, Tm = ny, Bm = ny + h;
+      const pointerWorldX = (p.x - pg.left) / state.scale;
+      const pointerWorldY = (p.y - pg.top) / state.scale;
+      
+      let nx = pointerWorldX - drag.clickOffsetX;
+      let ny = pointerWorldY - drag.clickOffsetY;
+      const w = drag.draggedComp.offsetWidth;
+      const h = drag.draggedComp.offsetHeight;
+
+      const Lm = nx, Rm = nx + w;
+      const Tm = ny, Bm = ny + h;
       let snappedX = false, snappedY = false;
-      for (const n of comps){
+      const otherComps = getAllComps().filter(c => !state.selected.includes(c));
+
+      for (const n of otherComps){
         const left = parseFloat(n.style.left)||0, top = parseFloat(n.style.top)||0;
         const nw = n.offsetWidth, nh = n.offsetHeight;
         const Lt = left, Rt = left+nw, Tt = top, Bt = top+nh;
-        if(Math.abs(Lm - Lt) < SNAP_THRESHOLD_EDGE) { nx = Lt; snappedX=true; }
-        if(Math.abs(Rm - Rt) < SNAP_THRESHOLD_EDGE) { nx = Rt - w; snappedX=true; }
-        if(Math.abs(Tm - Tt) < SNAP_THRESHOLD_EDGE) { ny = Tt; snappedY=true; }
-        if(Math.abs(Bm - Bt) < SNAP_THRESHOLD_EDGE) { ny = Bt - h; snappedY=true; }
+        
+        if (Math.abs(Lm - Lt) < SNAP_THRESHOLD_EDGE) { nx = Lt; snappedX = true; }
+        else if (Math.abs(Lm - Rt) < SNAP_THRESHOLD_EDGE) { nx = Rt; snappedX = true; }
+        else if (Math.abs(Rm - Lt) < SNAP_THRESHOLD_EDGE) { nx = Lt - w; snappedX = true; }
+        else if (Math.abs(Rm - Rt) < SNAP_THRESHOLD_EDGE) { nx = Rt - w; snappedX = true; }
+
+        if (Math.abs(Tm - Tt) < SNAP_THRESHOLD_EDGE) { ny = Tt; snappedY = true; }
+        else if (Math.abs(Tm - Bt) < SNAP_THRESHOLD_EDGE) { ny = Bt; snappedY = true; }
+        else if (Math.abs(Bm - Tt) < SNAP_THRESHOLD_EDGE) { ny = Tt - h; snappedY = true; }
+        else if (Math.abs(Bm - Bt) < SNAP_THRESHOLD_EDGE) { ny = Bt - h; snappedY = true; }
       }
-      if (!snappedX) { const gx = Math.round(nx / parseInt(el.dataset.tileW,10)) * parseInt(el.dataset.tileW,10); if (Math.abs(nx - gx) <= SNAP_THRESHOLD_GRID) nx = gx; }
-      if (!snappedY) { const gy = Math.round(ny / parseInt(el.dataset.tileH,10)) * parseInt(el.dataset.tileH,10); if (Math.abs(ny - gy) <= SNAP_THRESHOLD_GRID) ny = gy; }
+
+      if (!snappedX) {
+        const tileW = parseInt(drag.draggedComp.dataset.tileW || '1', 10) || 1;
+        const gx = Math.round(nx / tileW) * tileW;
+        if (Math.abs(nx - gx) <= SNAP_THRESHOLD_GRID) nx = gx;
+      }
+      if (!snappedY) {
+        const tileH = parseInt(drag.draggedComp.dataset.tileH || '1', 10) || 1;
+        const gy = Math.round(ny / tileH) * tileH;
+        if (Math.abs(ny - gy) <= SNAP_THRESHOLD_GRID) ny = gy;
+      }
+      
+      const initialDraggedPos = drag.initialPositions.get(drag.draggedComp);
+      const dx = nx - initialDraggedPos.x;
+      const dy = ny - initialDraggedPos.y;
       const {w:cw, h:ch} = getCanvas();
-      nx = Math.round(Math.max(0, Math.min(cw - w, nx)));
-      ny = Math.round(Math.max(0, Math.min(ch - h, ny)));
-      el.style.left = nx + 'px'; el.style.top = ny + 'px';
-      updateOffsetLabels(el);
+
+      drag.initialPositions.forEach((pos, comp) => {
+        let finalX = pos.x + dx;
+        let finalY = pos.y + dy;
+
+        finalX = Math.round(Math.max(0, Math.min(cw - comp.offsetWidth, finalX)));
+        finalY = Math.round(Math.max(0, Math.min(ch - comp.offsetHeight, finalY)));
+
+        comp.style.left = px(finalX);
+        comp.style.top = px(finalY);
+        updateOffsetLabels(comp);
+      });
     };
-    const end = ()=>{ drag = null; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', end); window.removeEventListener('touchmove', move); window.removeEventListener('touchend', end); };
-    el.addEventListener('mousedown', start); el.addEventListener('touchstart', start, { passive:false });
-    el.addEventListener('click', (e)=>{ e.stopPropagation(); selectComp(el); });
+    const end = ()=>{ 
+      drag = null; 
+      window.removeEventListener('mousemove', move); 
+      window.removeEventListener('mouseup', end); 
+      window.removeEventListener('touchmove', move); 
+      window.removeEventListener('touchend', end); 
+    };
+    
+    el.addEventListener('mousedown', start);
+    el.addEventListener('touchstart', start, { passive:false });
+    el.removeEventListener('click', el.clickHandler);
+    el.clickHandler = e => e.stopPropagation();
+    el.addEventListener('click', el.clickHandler);
   }
 
   function setNameColor(el, color){
@@ -609,8 +778,6 @@
     el.querySelector('.name').style.color = color;
     el.querySelector('.size').style.color = color;
   }
-
-  // MODIFICA: Ripristino creazione elementi originale e più stabile
   function addComposition(){
     const scr = getActiveScreen(); if (!scr) return;
     const name = (compNameInput.value || `Composizione`).trim();
@@ -648,12 +815,12 @@
     applyCompBackground(el);
     updateOffsetLabels(el);
     applyNameTransform(el);
-    selectComp(el);
+    setSelection(el);
   }
 
-  const renameOpen = ()=>{ if(!state.selected) return; renameInput.value = state.selected.querySelector('.name').textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.select(); };
+  const renameOpen = ()=>{ if(state.selected.length !== 1) return; const target = state.selected[0]; renameInput.value = target.querySelector('.name').textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.select(); };
   const renameClose= ()=>{ renameModal.style.display='none'; };
-  const renameSaveFn = ()=>{ if(!state.selected) return; const v=(renameInput.value||"").trim(); if(v){ state.selected.querySelector('.name').textContent=v; fitLabels(state.selected); refreshRecap(); } renameClose(); };
+  const renameSaveFn = ()=>{ if(state.selected.length !== 1) return; const v=(renameInput.value||"").trim(); if(v){ state.selected[0].querySelector('.name').textContent=v; fitLabels(state.selected[0]); refreshRecap(); } renameClose(); };
   renameBtn.addEventListener('click', renameOpen);
   renameCancel.addEventListener('click', renameClose);
   renameSave.addEventListener('click', renameSaveFn);
@@ -661,38 +828,38 @@
   renameInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter') renameSaveFn(); if(e.key==='Escape') renameClose(); });
 
   dupBtn.addEventListener('click', ()=>{
-    const src = state.selected; if(!src) return;
-    const {offsetWidth:w, offsetHeight:h, dataset} = src;
-    const tileW = parseInt(dataset.tileW,10), tileH = parseInt(dataset.tileH,10);
-    const cols = Math.round(w/tileW), rows = Math.round(h/tileH);
-    const el = document.createElement('div');
-    el.className = 'comp';
-    Object.assign(el.dataset, {...dataset, id:uid()});
-    el.style.width = px(w);
-    el.style.height = px(h);
-    const name = (src.querySelector('.name').textContent || 'Composizione') + ' Copy';
-    const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
-    const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
-    const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
-    const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
-    setNameColor(el, src.dataset.nameColor);
-    const {w:cw, h:ch} = getCanvas();
-    el.style.left = px(Math.min(cw - w, Math.max(0, (parseFloat(src.style.left)||0) + 24)));
-    el.style.top  = px(Math.min(ch - h, Math.max(0, (parseFloat(src.style.top)||0) + 24)));
-    screen.appendChild(el);
-    renderTileLabels(el, cols, rows, tileW, tileH);
-    makeDraggable(el);
-    applyCompBackground(el);
-    updateOffsetLabels(el);
-    applyNameTransform(el);
-    selectComp(el);
+    const newSelection = [];
+    [...state.selected].forEach(src => {
+        const {offsetWidth:w, offsetHeight:h, dataset} = src;
+        const tileW = parseInt(dataset.tileW,10), tileH = parseInt(dataset.tileH,10);
+        const cols = Math.round(w/tileW), rows = Math.round(h/tileH);
+        const el = document.createElement('div');
+        el.className = 'comp';
+        Object.assign(el.dataset, {...dataset, id:uid()});
+        el.style.width = px(w);
+        el.style.height = px(h);
+        const name = (src.querySelector('.name').textContent || 'Composizione') + ' Copy';
+        const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
+        const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
+        const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = name; el.appendChild(nameEl);
+        const sizeEl = document.createElement('div'); sizeEl.className = 'size'; sizeEl.textContent = `${w}×${h}px`; el.appendChild(sizeEl);
+        setNameColor(el, src.dataset.nameColor);
+        const {w:cw, h:ch} = getCanvas();
+        el.style.left = px(Math.min(cw - w, Math.max(0, (parseFloat(src.style.left)||0) + 24)));
+        el.style.top  = px(Math.min(ch - h, Math.max(0, (parseFloat(src.style.top)||0) + 24)));
+        screen.appendChild(el);
+        renderTileLabels(el, cols, rows, tileW, tileH);
+        makeDraggable(el);
+        applyCompBackground(el);
+        updateOffsetLabels(el);
+        applyNameTransform(el);
+        newSelection.push(el);
+    });
+    setSelection(newSelection);
   });
   delBtn.addEventListener('click', ()=>{
-    if(!state.selected) return;
-    const next = state.selected.nextElementSibling || state.selected.previousElementSibling;
-    state.selected.remove();
-    state.selected=null; updateToolbarState(); refreshRecap();
-    if(next) selectComp(next);
+    [...state.selected].forEach(el => el.remove());
+    clearSelection();
   });
 
   function applyCanvasFromInputs(){
@@ -710,23 +877,28 @@
   updateToolbarColorVisibility();
   tbColorCount.addEventListener('change', ()=>{
     updateToolbarColorVisibility();
-    const target = state.selected || state.defaults;
-    if(state.selected) { target.dataset.colorCount = tbColorCount.value; applyCompBackground(state.selected); }
-    else target.colorCount = parseInt(tbColorCount.value,10);
+    state.selected.forEach(el => {
+        el.dataset.colorCount = tbColorCount.value;
+        applyCompBackground(el);
+    });
+    if(state.selected.length === 0) state.defaults.colorCount = parseInt(tbColorCount.value,10);
   });
   [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp, i)=>{
     inp.addEventListener('input', ()=>{
-      [sw1p,sw2p,sw3p,sw4p][i].style.background = inp.value;
-      const target = state.selected || state.defaults;
-      if(state.selected) { target.dataset['c'+(i+1)] = inp.value; applyCompBackground(state.selected); }
-      else target.colors[i] = inp.value;
+      const color = inp.value;
+      [sw1p,sw2p,sw3p,sw4p][i].style.background = color;
+      state.selected.forEach(el => {
+        el.dataset['c'+(i+1)] = color;
+        applyCompBackground(el);
+      });
+      if(state.selected.length === 0) state.defaults.colors[i] = color;
     });
   });
   tbNameColor.addEventListener('input', ()=>{
-    swNamePrev.style.background = tbNameColor.value;
-    const target = state.selected || state.defaults;
-    if(state.selected) setNameColor(state.selected, tbNameColor.value);
-    else target.nameColor = tbNameColor.value;
+    const color = tbNameColor.value;
+    swNamePrev.style.background = color;
+    state.selected.forEach(el => setNameColor(el, color));
+    if(state.selected.length === 0) state.defaults.nameColor = color;
   });
 
   // Recap
@@ -750,7 +922,7 @@
       const row = document.createElement('div');
       row.className = 'recap-item';
       row.dataset.id = it.id;
-      if (state.selected && state.selected.dataset.id === it.id) row.classList.add('selected');
+      if (state.selected.find(el => el.dataset.id === it.id)) row.classList.add('selected');
 
       const makeEditable = (label, value, field, widthCh=6)=>{
         const span = document.createElement('span');
@@ -762,7 +934,7 @@
         span.dataset.base = String(value);
         span.textContent = String(value);
         span.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); span.blur(); } });
-        span.addEventListener('focus', ()=> selectById(it.id));
+        span.addEventListener('focus', ()=> setSelection(document.querySelector(`[data-id="${it.id}"]`)));
         span.addEventListener('blur', ()=> applyEdit(it.id, field, span.textContent, Number(span.dataset.base)));
         const lab = document.createElement('span');
         lab.className = 'pill'; lab.textContent = label; lab.style.marginRight='4px';
@@ -795,19 +967,14 @@
       groupOff.append('Offset:', xEl.querySelector('.editable'), document.createTextNode(','), yEl.querySelector('.editable'));
       row.append(groupOff);
 
-      row.addEventListener('click', (e)=> { if(!(e.target instanceof HTMLElement && e.target.isContentEditable)){ selectById(it.id); } });
+      row.addEventListener('click', (e)=> { if(!(e.target instanceof HTMLElement && e.target.isContentEditable)){ setSelection(document.querySelector(`[data-id="${it.id}"]`)); } });
       recap.appendChild(row);
     }
   }
-  function selectById(id){
-    const el = getAllComps().find(n=> n.dataset.id===id);
-    if (el) selectComp(el);
-    highlightRecapSelection();
-  }
+  
   function highlightRecapSelection(){
-    const idSel = state.selected?.dataset.id;
     recap.querySelectorAll('.recap-item').forEach(r=>{
-      r.classList.toggle('selected', r.dataset.id===idSel);
+      r.classList.toggle('selected', !!state.selected.find(el => el.dataset.id === r.dataset.id));
     });
   }
   function applyEdit(id, field, rawValue, baseValue){
@@ -856,7 +1023,7 @@
     applyCompBackground(el);
     updateOffsetLabels(el);
     renderTileLabels(el, cols, rows, tileW, tileH);
-    selectComp(el);
+    setSelection(el);
     refreshRecap();
     persistCurrentScreen();
   }
@@ -890,7 +1057,7 @@
   function persistCurrentScreen(){ collectCurrentScreen(); }
   function collectProject(){ persistCurrentScreen(); return {version:5, name:(projectNameInput.value||'Progetto').trim(), defaults:state.defaults, screens:state.screens }; }
   function saveProject(){ const data=collectProject(); const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${(data.name||'progetto').replace(/[^a-z0-9_\-]+/gi,'_').toLowerCase()}.json`; a.click(); URL.revokeObjectURL(a.href); }
-  function clearCanvas(){ getAllComps().forEach(el=>el.remove()); state.selected = null; updateToolbarState(); refreshRecap(); }
+  function clearCanvas(){ getAllComps().forEach(el=>el.remove()); state.selected = []; updateToolbarState(); refreshRecap(); }
   
   function createCompFromData(c){
     const w = c.cols * c.tileW, h = c.rows * c.tileH;
@@ -1005,14 +1172,13 @@
   saveBtn.addEventListener('click', saveProject);
   loadFile.addEventListener('change', (e)=>{ const file = e.target.files?.[0]; if(!file) return; const reader=new FileReader(); reader.onload=(ev)=>{ try{const obj=JSON.parse(String(ev.target?.result||'{}')); loadProjectFromObject(obj);}catch(err){alert('File non valido.');}}; reader.readAsText(file); e.target.value=''; });
   addCompBtn.addEventListener('click', ()=>{ addComposition(); persistCurrentScreen(); });
-  screen.addEventListener('click', ()=>{ clearSelection(); });
   new ResizeObserver(fitToViewport).observe(viewport);
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
   
   toggleFontSizeBtn.addEventListener('click', (e) => { e.stopPropagation(); if(toggleFontSizeBtn.disabled) return; visibilityPopup.classList.remove('visible'); fontSizePopup.classList.toggle('visible'); });
-  fontSizeSlider.addEventListener('input', ()=>{ if (!state.selected) return; const size=fontSizeSlider.value; state.selected.dataset.nameFontSize = size; state.selected.querySelector('.name').style.fontSize = size + 'px'; fontSizeValue.textContent = size + 'px'; });
-  nameOffsetXSlider.addEventListener('input', ()=>{ if (!state.selected) return; const val=nameOffsetXSlider.value; state.selected.dataset.nameOffsetX = val; nameOffsetXValue.textContent = val + 'px'; applyNameTransform(state.selected); });
-  nameOffsetYSlider.addEventListener('input', ()=>{ if (!state.selected) return; const val=nameOffsetYSlider.value; state.selected.dataset.nameOffsetY = val; nameOffsetYValue.textContent = val + 'px'; applyNameTransform(state.selected); });
+  fontSizeSlider.addEventListener('input', ()=>{ if (state.selected.length === 0) return; const size=fontSizeSlider.value; state.selected.forEach(el => { el.dataset.nameFontSize = size; el.querySelector('.name').style.fontSize = size + 'px'; }); fontSizeValue.textContent = size + 'px'; });
+  nameOffsetXSlider.addEventListener('input', ()=>{ if (state.selected.length === 0) return; const val=nameOffsetXSlider.value; state.selected.forEach(el => { el.dataset.nameOffsetX = val; applyNameTransform(el); }); nameOffsetXValue.textContent = val + 'px'; });
+  nameOffsetYSlider.addEventListener('input', ()=>{ if (state.selected.length === 0) return; const val=nameOffsetYSlider.value; state.selected.forEach(el => { el.dataset.nameOffsetY = val; applyNameTransform(el); }); nameOffsetYValue.textContent = val + 'px'; });
 
   toggleVisibilityBtn.addEventListener('click', (e) => { e.stopPropagation(); fontSizePopup.classList.remove('visible'); visibilityPopup.classList.toggle('visible'); });
   visibilityPopup.addEventListener('click', (e) => {
@@ -1033,6 +1199,152 @@
         visibilityPopup.classList.remove('visible');
     }
   });
+
+  window.addEventListener('keydown', (e) => {
+      if ((e.key === 'a' || e.key === 'A') && e.ctrlKey) {
+          e.preventDefault();
+          selectAll();
+      }
+  });
+  
+  // Inizializzazione Zoom/Pan
+  const center = { x: viewport.clientWidth / 2, y: viewport.clientHeight / 2 };
+  zoomInBtn.addEventListener('click', () => applyZoom(1.2, center.x, center.y));
+  zoomOutBtn.addEventListener('click', () => applyZoom(1 / 1.2, center.x, center.y));
+  viewport.addEventListener('wheel', e => {
+      e.preventDefault();
+      const rect = viewport.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      applyZoom(e.deltaY > 0 ? 0.9 : 1.1, mouseX, mouseY);
+  });
+  viewport.addEventListener('mousedown', e => {
+      if (e.button === 1) { // MODIFICA: Pan solo con tasto centrale
+          isPanning = true;
+          lastPanX = e.clientX;
+          lastPanY = e.clientY;
+      }
+  });
+  window.addEventListener('mousemove', e => {
+      if (!isPanning) return;
+      state.panX += e.clientX - lastPanX;
+      state.panY += e.clientY - lastPanY;
+      lastPanX = e.clientX;
+      lastPanY = e.clientY;
+      updateTransform();
+  });
+  window.addEventListener('mouseup', () => isPanning = false);
+  
+  // Pan & Zoom Touch
+  viewport.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const t1 = e.touches[0], t2 = e.touches[1];
+      lastPinchDist = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
+    }
+  }, { passive: false });
+
+  viewport.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const t1 = e.touches[0], t2 = e.touches[1];
+      const newDist = Math.hypot(t1.pageX - t2.pageX, t1.pageY - t2.pageY);
+      const rect = viewport.getBoundingClientRect();
+      const centerX = (t1.clientX + t2.clientX) / 2 - rect.left;
+      const centerY = (t1.clientY + t2.clientY) / 2 - rect.top;
+      if (lastPinchDist) applyZoom(newDist / lastPinchDist, centerX, centerY);
+      lastPinchDist = newDist;
+    }
+  }, { passive: false });
+
+  viewport.addEventListener('touchend', e => {
+    if (e.touches.length < 2) lastPinchDist = 0;
+  });
+
+  // GESTIONE SELEZIONE A RETTANGOLO
+  viewport.addEventListener('mousedown', e => {
+    if (e.button !== 0 || e.target !== screen) return;
+    e.preventDefault();
+
+    const screenRect = screen.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+
+    marquee = {
+        startX: (e.clientX - screenRect.left) / state.scale,
+        startY: (e.clientY - screenRect.top) / state.scale,
+        startX_vp: e.clientX - viewportRect.left,
+        startY_vp: e.clientY - viewportRect.top,
+        shiftKey: e.shiftKey,
+        startClientX: e.clientX,
+        startClientY: e.clientY
+    };
+    
+    if (!e.shiftKey) { clearSelection(); }
+    
+    selectionBox.style.left = px(marquee.startX_vp);
+    selectionBox.style.top = px(marquee.startY_vp);
+    selectionBox.style.width = '0px';
+    selectionBox.style.height = '0px';
+    selectionBox.style.display = 'block';
+
+    window.addEventListener('mousemove', moveMarquee);
+    window.addEventListener('mouseup', endMarquee);
+  });
+
+  function moveMarquee(e) {
+      if (!marquee) return;
+      const viewportRect = viewport.getBoundingClientRect();
+      const currentX_vp = e.clientX - viewportRect.left;
+      const currentY_vp = e.clientY - viewportRect.top;
+      
+      const left = Math.min(marquee.startX_vp, currentX_vp);
+      const top = Math.min(marquee.startY_vp, currentY_vp);
+      const width = Math.abs(currentX_vp - marquee.startX_vp);
+      const height = Math.abs(currentY_vp - marquee.startY_vp);
+
+      selectionBox.style.left = px(left);
+      selectionBox.style.top = px(top);
+      selectionBox.style.width = px(width);
+      selectionBox.style.height = px(height);
+  }
+
+  function endMarquee(e) {
+      if (!marquee) return;
+      selectionBox.style.display = 'none';
+      const dist = Math.hypot(e.clientX - marquee.startClientX, e.clientY - marquee.startClientY);
+
+      if (dist > 5) {
+          const screenRect = screen.getBoundingClientRect();
+          const endX = (e.clientX - screenRect.left) / state.scale;
+          const endY = (e.clientY - screenRect.top) / state.scale;
+
+          const selectionRect = {
+              x1: Math.min(marquee.startX, endX),
+              y1: Math.min(marquee.startY, endY),
+              x2: Math.max(marquee.startX, endX),
+              y2: Math.max(marquee.startY, endY)
+          };
+
+          const itemsToSelect = [];
+          getAllComps().forEach(comp => {
+              const compRect = { x1: comp.offsetLeft, y1: comp.offsetTop, x2: comp.offsetLeft + comp.offsetWidth, y2: comp.offsetTop + comp.offsetHeight };
+              const intersects = (compRect.x1 < selectionRect.x2 && compRect.x2 > selectionRect.x1 && compRect.y1 < selectionRect.y2 && compRect.y2 > selectionRect.y1);
+              if (intersects) { itemsToSelect.push(comp); }
+          });
+          
+          if (marquee.shiftKey) {
+              itemsToSelect.forEach(item => addToSelection(item));
+          } else {
+              setSelection(itemsToSelect);
+          }
+      } else {
+          if (!marquee.shiftKey) { clearSelection(); }
+      }
+
+      window.removeEventListener('mousemove', moveMarquee);
+      window.removeEventListener('mouseup', endMarquee);
+      marquee = null;
+  }
   
   (function init(){
     state.screens = [{id: uid(), name: 'Schermo 1', canvas: { w:1920, h:1080 }, compositions: []}];
@@ -1073,17 +1385,6 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
     function safeName(s){
       return String(s||'').trim().replace(/[^a-z0-9_\-]+/gi,'_').replace(/^_+|_+$/g,'').toLowerCase() || 'screen';
     }
-    function fitFont(ctx, text, maxWidth, maxHeight, maxPx){
-      let lo=6, hi=Math.min(maxPx||72, Math.max(10, Math.floor(maxHeight))), best=lo;
-      while(lo<=hi){
-        const mid=(lo+hi>>1);
-        ctx.font = `bold ${mid}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
-        const w = ctx.measureText(text).width;
-        if (w<=maxWidth){ best=mid; lo=mid+1; } else { hi=mid-1; }
-      }
-      ctx.font = `bold ${best}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
-      return best;
-    }
     
     function drawScreenToCanvas(scr, defaults, visibility){
       const w = Math.max(1, parseInt(scr.canvas?.w||1920,10));
@@ -1117,15 +1418,6 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
             ctx.fillStyle = col;
             if (iw > 0 && ih > 0) { ctx.fillRect(tx + borderWidth, ty + borderWidth, iw, ih); } 
             else { ctx.fillRect(tx, ty, tileW, tileH); }
-
-            if(visibility.tileLabels) {
-              const fs = Math.max(9, Math.min(28, Math.floor(Math.min(tileW, tileH)*0.28)));
-              ctx.font = `bold ${fs}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
-              ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-              ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 2;
-              ctx.fillText(`${r+1}-${c+1}`, tx+2, ty+2);
-              ctx.shadowBlur = 0;
-            }
           }
         }
 
@@ -1133,7 +1425,12 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
         ctx.fillStyle='#45b8ff'; 
         ctx.fillRect(x, y, rectW, outline); ctx.fillRect(x, y+rectH-outline, rectW, outline);
         ctx.fillRect(x, y, outline, rectH); ctx.fillRect(x+rectW-outline, y, outline, rectH);
-
+      });
+      
+      (scr.compositions||[]).forEach(comp=>{
+        const x=Math.round(comp.x||0), y=Math.round(comp.y||0);
+        const {cols, rows, tileW, tileH} = comp;
+        const rectW = cols*tileW, rectH = rows*tileH;
         const name = comp.name || '', nameCol = comp.nameColor || '#ffffff', sizeTxt = `${rectW}×${rectH}px`;
         const centerX = x + rectW/2, nameBaseY = y + rectH / 2, sizeBaseY = y + rectH - (tileH / 2);
 
@@ -1160,17 +1457,29 @@ function renderTileLabels(el, cols, rows, tileW, tileH){
           ctx.fillText(sizeTxt, centerX, sizeBaseY);
         }
         
+        if(visibility.tileLabels) {
+          for(let r=0;r<rows;r++){
+            for(let c=0;c<cols;c++){
+              const tx=x + c*tileW, ty=y + r*tileH;
+              const fs = Math.max(9, Math.min(28, Math.floor(Math.min(tileW, tileH)*0.28)));
+              ctx.font = `bold ${fs}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
+              ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+              ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+              ctx.fillText(`${r+1}-${c+1}`, tx+2, ty+2);
+            }
+          }
+        }
+
         const offTL = `(${x},${y})`, offBR = `(${x + rectW - 1},${y + rectH - 1})`;
         const offMax = Math.max(10, Math.min(24, Math.floor(rectH*0.12)));
         ctx.fillStyle='#fff'; ctx.shadowColor='#000'; ctx.shadowBlur=2;
+        ctx.font = `bold ${offMax}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
         
         if (visibility.offsetTL) {
-          ctx.font = `bold ${offMax}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
           ctx.textAlign='left'; ctx.textBaseline='top';
           ctx.fillText(offTL, x+6, y+30);
         }
         if (visibility.offsetBR) {
-          ctx.font = `bold ${offMax}px system-ui, -apple-system, Segoe UI, Roboto, sans-serif`;
           ctx.textAlign='right'; ctx.textBaseline='bottom';
           ctx.fillText(offBR, x+rectW-6, y+rectH-6);
         }
