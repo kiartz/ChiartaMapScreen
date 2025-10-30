@@ -234,6 +234,9 @@
         <div id="toolbar">
           <span class="divider"></span>
           <button id="exportBtn" class="icon" title="Esporta PNG">🖼️</button>
+          <button id="undoBtn" class="icon" title="Annulla">↩️</button>
+          <button id="redoBtn" class="icon" title="Ripristina">↪️</button>
+          <span class="divider"></span>
           <button id="renameBtn" class="icon" title="Rinomina">✎</button>
           <button id="duplicateBtn" class="icon" title="Duplica">⧉</button>
           <button id="deleteBtn" class="icon" title="Elimina">🗑️</button>
@@ -400,6 +403,8 @@
   const renameBtn = document.getElementById('renameBtn');
   const dupBtn = document.getElementById('duplicateBtn');
   const delBtn = document.getElementById('deleteBtn');
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
   const renameModal = document.getElementById('renameModal');
   const renameInput = document.getElementById('renameInput');
   const renameSave = document.getElementById('renameSave');
@@ -432,17 +437,17 @@
   const visibilityPopup = document.getElementById('visibilityPopup');
 
   // Funzioni
-  function applyCanvasSize(w,h){ screen.style.width = px(w); screen.style.height = px(h); fitToViewport(); clampAllComps(); }
+  function applyCanvasSize(w,h){ screen.style.width = px(w); screen.style.height = px(h); clampAllComps(); }
   
   function updateTransform() {
     screenWrap.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
   }
   
   function fitToViewport(){
-    const vw = viewport.clientWidth - 16;
-    const vh = viewport.clientHeight - 16;
-    const sx = vw / getCanvas().w;
-    const sy = vh / getCanvas().h;
+    const vw = viewport.clientWidth;
+    const vh = viewport.clientHeight;
+    const sx = vw / (getCanvas().w + 40);
+    const sy = vh / (getCanvas().h + 40);
     state.scale = Math.min(sx, sy, 1);
     state.panX = 0;
     state.panY = 0;
@@ -547,7 +552,7 @@
     delBtn.disabled = count === 0;
     renameBtn.disabled = count !== 1;
     toggleFontSizeBtn.disabled = count === 0;
-
+    updateUndoRedoButtons();
     if (count === 0) fontSizePopup.classList.remove('visible');
   }
 
@@ -666,9 +671,8 @@
     const getPos = (e)=>{ if(e.touches&&e.touches[0]) e=e.touches[0]; return {x:e.clientX,y:e.clientY}; };
     
     const start = (e)=>{
-      if (e.button === 1) return; // Ignora il tasto centrale per il drag
+      if (e.button === 1) return; 
 
-      e.preventDefault();
       e.stopPropagation();
 
       if (e.shiftKey) {
@@ -759,6 +763,7 @@
       });
     };
     const end = ()=>{ 
+      if (drag) recordHistory();
       drag = null; 
       window.removeEventListener('mousemove', move); 
       window.removeEventListener('mouseup', end); 
@@ -768,8 +773,8 @@
     
     el.addEventListener('mousedown', start);
     el.addEventListener('touchstart', start, { passive:false });
-    el.removeEventListener('click', el.clickHandler);
-    el.clickHandler = e => e.stopPropagation();
+    if(el.clickHandler) el.removeEventListener('click', el.clickHandler);
+    el.clickHandler = e => { e.preventDefault(); e.stopPropagation(); };
     el.addEventListener('click', el.clickHandler);
   }
 
@@ -781,12 +786,18 @@
   function addComposition(){
     const scr = getActiveScreen(); if (!scr) return;
     const name = (compNameInput.value || `Composizione`).trim();
-    const cols  = Math.max(1, evalIntExpression(colsInput.value,  8) ?? 8);
-    const rows  = Math.max(1, evalIntExpression(rowsInput.value,  4) ?? 4);
-    const tileW = Math.max(1, evalIntExpression(tileWInput.value, 128)   ?? 128);
-    const tileH = Math.max(1, evalIntExpression(tileHInput.value, 128)   ?? 128);
-    let   nx    = Math.max(0, evalIntExpression(startXInput.value, 0)  ?? 0);
-    let   ny    = Math.max(0, evalIntExpression(startYInput.value, 0)  ?? 0);
+    
+    // Calcola i valori (la funzione setupInlineCalc li ha già aggiornati, ma li ricalcoliamo per sicurezza)
+    const cols  = Math.max(1, evalIntExpression(colsInput.value,  parseInt(colsInput.dataset.lastValidValue || 8)) ?? 8);
+    const rows  = Math.max(1, evalIntExpression(rowsInput.value,  parseInt(rowsInput.dataset.lastValidValue || 4)) ?? 4);
+    const tileW = Math.max(1, evalIntExpression(tileWInput.value, parseInt(tileWInput.dataset.lastValidValue || 128)) ?? 128);
+    const tileH = Math.max(1, evalIntExpression(tileHInput.value, parseInt(tileHInput.dataset.lastValidValue || 128)) ?? 128);
+    let   nx    = Math.max(0, evalIntExpression(startXInput.value, parseInt(startXInput.dataset.lastValidValue || 0)) ?? 0);
+    let   ny    = Math.max(0, evalIntExpression(startYInput.value, parseInt(startYInput.dataset.lastValidValue || 0)) ?? 0);
+
+    // **NOTA**: Ho rimosso il blocco che riscriveva i valori,
+    // perché la nuova funzione setupInlineCalc lo fa già in tempo reale.
+
     const w = cols * tileW;
     const h = rows * tileH;
     const el = document.createElement('div');
@@ -815,12 +826,13 @@
     applyCompBackground(el);
     updateOffsetLabels(el);
     applyNameTransform(el);
-    setSelection(el);
+    setSelection(el); // La selezione aggiorna già l'UI
+    recordHistory();
   }
 
   const renameOpen = ()=>{ if(state.selected.length !== 1) return; const target = state.selected[0]; renameInput.value = target.querySelector('.name').textContent || ""; renameModal.style.display='flex'; renameInput.focus(); renameInput.select(); };
   const renameClose= ()=>{ renameModal.style.display='none'; };
-  const renameSaveFn = ()=>{ if(state.selected.length !== 1) return; const v=(renameInput.value||"").trim(); if(v){ state.selected[0].querySelector('.name').textContent=v; fitLabels(state.selected[0]); refreshRecap(); } renameClose(); };
+  const renameSaveFn = ()=>{ if(state.selected.length !== 1) return; const v=(renameInput.value||"").trim(); if(v){ state.selected[0].querySelector('.name').textContent=v; fitLabels(state.selected[0]); refreshRecap(); recordHistory();} renameClose(); };
   renameBtn.addEventListener('click', renameOpen);
   renameCancel.addEventListener('click', renameClose);
   renameSave.addEventListener('click', renameSaveFn);
@@ -856,10 +868,13 @@
         newSelection.push(el);
     });
     setSelection(newSelection);
+    recordHistory();
   });
   delBtn.addEventListener('click', ()=>{
     [...state.selected].forEach(el => el.remove());
     clearSelection();
+    recordHistory();
+    refreshRecap();
   });
 
   function applyCanvasFromInputs(){
@@ -869,6 +884,7 @@
     applyCanvasSize(scr.canvas.w, scr.canvas.h);
     canvasWInput.value = String(scr.canvas.w);
     canvasHInput.value = String(scr.canvas.h);
+    recordHistory();
   }
   applyCanvasBtn.addEventListener('click', applyCanvasFromInputs);
   fitBtn.addEventListener('click', fitToViewport);
@@ -882,7 +898,9 @@
         applyCompBackground(el);
     });
     if(state.selected.length === 0) state.defaults.colorCount = parseInt(tbColorCount.value,10);
+    if (state.selected.length > 0) recordHistory();
   });
+
   [tbCol1,tbCol2,tbCol3,tbCol4].forEach((inp, i)=>{
     inp.addEventListener('input', ()=>{
       const color = inp.value;
@@ -893,12 +911,19 @@
       });
       if(state.selected.length === 0) state.defaults.colors[i] = color;
     });
+    inp.addEventListener('change', ()=>{
+      if (state.selected.length > 0) recordHistory();
+    });
   });
+  
   tbNameColor.addEventListener('input', ()=>{
     const color = tbNameColor.value;
     swNamePrev.style.background = color;
     state.selected.forEach(el => setNameColor(el, color));
     if(state.selected.length === 0) state.defaults.nameColor = color;
+  });
+  tbNameColor.addEventListener('change', ()=>{
+    if (state.selected.length > 0) recordHistory();
   });
 
   // Recap
@@ -992,7 +1017,7 @@
     if (field === 'name'){
       const text = (rawValue||'').trim();
       if (text) { el.querySelector('.name').textContent = text; fitLabels(el); }
-      refreshRecap(); return;
+      refreshRecap(); recordHistory(); return;
     }
 
     const v = evalIntExpression(rawValue, baseValue);
@@ -1025,7 +1050,7 @@
     renderTileLabels(el, cols, rows, tileW, tileH);
     setSelection(el);
     refreshRecap();
-    persistCurrentScreen();
+    recordHistory();
   }
   
   // Salva/Carica
@@ -1041,21 +1066,28 @@
         name: nameEl.textContent||'', 
         cols:Math.round(w/dataset.tileW), 
         rows:Math.round(h/dataset.tileH), 
-        tileW:parseInt(dataset.tileW), 
-        tileH:parseInt(dataset.tileH), 
+        tileW:parseInt(dataset.tileW, 10), 
+        tileH:parseInt(dataset.tileH, 10), 
         x:Math.round(parseFloat(el.style.left)||0), 
         y:Math.round(parseFloat(el.style.top)||0), 
-        colorCount:parseInt(dataset.colorCount), 
+        colorCount:parseInt(dataset.colorCount, 10), 
         colors:[dataset.c1,dataset.c2,dataset.c3,dataset.c4], 
         nameColor:dataset.nameColor, 
         nameFontSize: finalNameFontSize, 
-        nameOffsetX: dataset.nameOffsetX, 
-        nameOffsetY: dataset.nameOffsetY 
+        nameOffsetX: parseInt(dataset.nameOffsetX, 10) || 0, 
+        nameOffsetY: parseInt(dataset.nameOffsetY, 10) || 0 
       };
     });
   }
   function persistCurrentScreen(){ collectCurrentScreen(); }
-  function collectProject(){ persistCurrentScreen(); return {version:5, name:(projectNameInput.value||'Progetto').trim(), defaults:state.defaults, screens:state.screens }; }
+  
+  function collectProject(){ 
+    persistCurrentScreen(); 
+    const proj = {version:5, name:(projectNameInput.value||'Progetto').trim(), defaults:state.defaults, screens:state.screens, activeScreenId: state.activeScreenId };
+    proj.selectedIds = state.selected.map(el => el.dataset.id);
+    return proj;
+  }
+
   function saveProject(){ const data=collectProject(); const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${(data.name||'progetto').replace(/[^a-z0-9_\-]+/gi,'_').toLowerCase()}.json`; a.click(); URL.revokeObjectURL(a.href); }
   function clearCanvas(){ getAllComps().forEach(el=>el.remove()); state.selected = []; updateToolbarState(); refreshRecap(); }
   
@@ -1074,7 +1106,11 @@
     el.dataset.c2 = arr[1] || state.defaults.colors[1];
     el.dataset.c3 = arr[2] || state.defaults.colors[2];
     el.dataset.c4 = arr[3] || state.defaults.colors[3];
-    Object.assign(el.dataset, { nameColor:c.nameColor, nameFontSize:c.nameFontSize, nameOffsetX:c.nameOffsetX, nameOffsetY:c.nameOffsetY });
+    el.dataset.nameColor = c.nameColor || state.defaults.nameColor;
+    if (c.nameFontSize) el.dataset.nameFontSize = c.nameFontSize;
+    el.dataset.nameOffsetX = c.nameOffsetX || 0;
+    el.dataset.nameOffsetY = c.nameOffsetY || 0;
+
     const offTL = document.createElement('div'); offTL.className = 'offset'; el.appendChild(offTL);
     const offBR = document.createElement('div'); offBR.className = 'offsetBR'; el.appendChild(offBR);
     const nameEl = document.createElement('div'); nameEl.className = 'name'; nameEl.textContent = c.name || 'Composizione'; el.appendChild(nameEl);
@@ -1096,21 +1132,92 @@
     (screenObj.compositions||[]).forEach(createCompFromData);
     refreshRecap();
   }
+
   function loadProjectFromObject(obj){
     if (!obj || typeof obj !== 'object') return;
     Object.assign(state.defaults, obj.defaults);
     state.screens = obj.screens || [{ id: uid(), name: 'Schermo 1', canvas: { w: 1920, h: 1080 }, compositions: [] }];
     projectNameInput.value = obj.name || '';
-    state.activeScreenId = state.screens[0]?.id;
+
+    state.activeScreenId = obj.activeScreenId || state.screens[0]?.id; 
+    if (!state.screens.find(s => s.id === state.activeScreenId)) {
+      state.activeScreenId = state.screens[0]?.id;
+    }
+
     updateScreenSelect();
-    if (getActiveScreen()) loadScreenIntoDOM(getActiveScreen());
+    const currentScreen = getActiveScreen();
+    if (!currentScreen) return;
+
+    loadScreenIntoDOM(currentScreen);
+    
+    const selectedIds = new Set(obj.selectedIds || []);
+    const elementsToSelect = getAllComps().filter(el => selectedIds.has(el.dataset.id));
+    setSelection(elementsToSelect);
   }
+
   function getActiveScreen(){ return state.screens.find(s=> s.id===state.activeScreenId) || null; }
   function updateScreenSelect(){
     screenSelect.innerHTML = state.screens.map(s => `<option value="${s.id}">${s.name} (${s.canvas.w}×${s.canvas.h})</option>`).join('');
     if (!state.screens.find(s=> s.id===state.activeScreenId) && state.screens[0]) state.activeScreenId = state.screens[0].id;
     screenSelect.value = state.activeScreenId || (state.screens[0]?.id || '');
   }
+  screenSelect.addEventListener('change', ()=>{
+    const newId = screenSelect.value;
+    if (!newId || newId === state.activeScreenId) return;
+    persistCurrentScreen();
+    state.activeScreenId = newId;
+    const scr = getActiveScreen(); 
+    if (scr) { 
+      loadScreenIntoDOM(scr); 
+    }
+  });
+
+  // *** INIZIO CODICE AGGIUNTO ***
+  // Funzione per calcolo inline
+  function setupInlineCalc(input, defaultValue) {
+    const evaluate = () => {
+      // La 'base' per operazioni come "+2" è l'ultimo valore valido conosciuto
+      const base = parseInt(input.dataset.lastValidValue || defaultValue, 10) || defaultValue;
+      const expr = input.value;
+      const result = evalIntExpression(expr, base); 
+      
+      if (Number.isFinite(result)) {
+        input.value = result;
+        input.dataset.lastValidValue = result; // Aggiorna l'ultimo valore valido
+      } else {
+        // Se non valido, ripristina l'ultimo valore valido
+        input.value = base; 
+      }
+    };
+    
+    // Memorizza il valore iniziale come "ultimo valore valido"
+    input.dataset.lastValidValue = input.value;
+
+    input.addEventListener('blur', evaluate);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        evaluate();
+        e.preventDefault(); 
+      } else if (e.key === 'Escape') {
+        input.value = input.dataset.lastValidValue || defaultValue;
+        input.blur();
+      }
+    });
+    
+    // Quando si entra nel campo, aggiorna "l'ultimo valore valido"
+    // in modo che operazioni come "+2" si basino sul valore corrente.
+    input.addEventListener('focus', () => {
+       const currentVal = parseInt(input.value, 10);
+       if (Number.isFinite(currentVal)) {
+          input.dataset.lastValidValue = currentVal;
+       } else {
+          // Se il campo contiene testo non valido, reimposta al default
+          input.value = defaultValue;
+          input.dataset.lastValidValue = defaultValue;
+       }
+    });
+  }
+  // *** FINE CODICE AGGIUNTO ***
 
   // Funzione per rendere i valori editabili
   function setupEditableValue(valueSpan, slider) {
@@ -1147,7 +1254,6 @@
     });
   }
   
-  // Gestione visibilità
   function applyVisibilityState() {
     for (const key in state.visibility) {
       const classMap = { name: 'hide-names', size: 'hide-sizes', tileLabels: 'hide-tile-labels', offsetTL: 'hide-offset-tl', offsetBR: 'hide-offset-br' };
@@ -1168,10 +1274,76 @@
     }
   }
 
+  // --- LOGICA UNDO/REDO ---
+  let history = [];
+  let historyIndex = -1;
+  const MAX_HISTORY_STATES = 50;
+  
+  function recordHistory(reset = false) {
+    if (reset) {
+      history = [];
+      historyIndex = -1;
+    }
+    const currentState = collectProject();
+    history.splice(historyIndex + 1);
+    history.push(JSON.stringify(currentState));
+    if (history.length > MAX_HISTORY_STATES) {
+      history.shift();
+    }
+    historyIndex = history.length - 1;
+    updateUndoRedoButtons();
+  }
+
+  function loadStateFromHistory(stateString) {
+    const obj = JSON.parse(stateString);
+    loadProjectFromObject(obj);
+  }
+
+  function undo() {
+    if (historyIndex >= 1) {
+      historyIndex--;
+      loadStateFromHistory(history[historyIndex]);
+      updateUndoRedoButtons();
+    }
+  }
+
+  function redo() {
+    if (historyIndex < history.length - 1) {
+      historyIndex++;
+      loadStateFromHistory(history[historyIndex]);
+      updateUndoRedoButtons();
+    }
+  }
+
+  function updateUndoRedoButtons() {
+    undoBtn.disabled = historyIndex <= 0;
+    redoBtn.disabled = historyIndex >= history.length - 1;
+  }
+  
   // Eventi e Boot
   saveBtn.addEventListener('click', saveProject);
-  loadFile.addEventListener('change', (e)=>{ const file = e.target.files?.[0]; if(!file) return; const reader=new FileReader(); reader.onload=(ev)=>{ try{const obj=JSON.parse(String(ev.target?.result||'{}')); loadProjectFromObject(obj);}catch(err){alert('File non valido.');}}; reader.readAsText(file); e.target.value=''; });
-  addCompBtn.addEventListener('click', ()=>{ addComposition(); persistCurrentScreen(); });
+  loadFile.addEventListener('change', (e)=>{ const file = e.target.files?.[0]; if(!file) return; const reader=new FileReader(); reader.onload=(ev)=>{ try{const obj=JSON.parse(String(ev.target?.result||'{}')); loadProjectFromObject(obj); recordHistory(true); fitToViewport();}catch(err){alert('File non valido.');}}; reader.readAsText(file); e.target.value=''; });
+  addCompBtn.addEventListener('click', ()=>{ addComposition(); });
+
+  newScreenBtn.addEventListener('click', () => {
+      const name = prompt('Nome del nuovo schermo:', `Schermo ${state.screens.length + 1}`);
+      if (!name || name.trim() === '') {
+          return;
+      }
+      persistCurrentScreen();
+      const newScreen = {
+          id: uid(),
+          name: name.trim(),
+          canvas: { w: 1920, h: 1080 },
+          compositions: []
+      };
+      state.screens.push(newScreen);
+      state.activeScreenId = newScreen.id;
+      updateScreenSelect();
+      loadScreenIntoDOM(newScreen);
+      recordHistory();
+  });
+
   new ResizeObserver(fitToViewport).observe(viewport);
   window.addEventListener('orientationchange', ()=>setTimeout(fitToViewport,0));
   
@@ -1179,13 +1351,16 @@
   fontSizeSlider.addEventListener('input', ()=>{ if (state.selected.length === 0) return; const size=fontSizeSlider.value; state.selected.forEach(el => { el.dataset.nameFontSize = size; el.querySelector('.name').style.fontSize = size + 'px'; }); fontSizeValue.textContent = size + 'px'; });
   nameOffsetXSlider.addEventListener('input', ()=>{ if (state.selected.length === 0) return; const val=nameOffsetXSlider.value; state.selected.forEach(el => { el.dataset.nameOffsetX = val; applyNameTransform(el); }); nameOffsetXValue.textContent = val + 'px'; });
   nameOffsetYSlider.addEventListener('input', ()=>{ if (state.selected.length === 0) return; const val=nameOffsetYSlider.value; state.selected.forEach(el => { el.dataset.nameOffsetY = val; applyNameTransform(el); }); nameOffsetYValue.textContent = val + 'px'; });
+  fontSizeSlider.addEventListener('change', ()=>recordHistory());
+  nameOffsetXSlider.addEventListener('change', ()=>recordHistory());
+  nameOffsetYSlider.addEventListener('change', ()=>recordHistory());
 
   toggleVisibilityBtn.addEventListener('click', (e) => { e.stopPropagation(); fontSizePopup.classList.remove('visible'); visibilityPopup.classList.toggle('visible'); });
   visibilityPopup.addEventListener('click', (e) => {
     const button = e.target.closest('[data-toggle]');
     if (!button) return;
     const key = button.dataset.toggle;
-    if (key in state.visibility) {
+    if (key && key in state.visibility) {
       state.visibility[key] = !state.visibility[key];
       applyVisibilityState();
     }
@@ -1205,6 +1380,14 @@
           e.preventDefault();
           selectAll();
       }
+      if ((e.key === 'z' || e.key === 'Z') && e.ctrlKey) {
+          e.preventDefault();
+          undo();
+      }
+      if ((e.key === 'y' || e.key === 'Y') && e.ctrlKey) {
+          e.preventDefault();
+          redo();
+      }
   });
   
   // Inizializzazione Zoom/Pan
@@ -1219,7 +1402,7 @@
       applyZoom(e.deltaY > 0 ? 0.9 : 1.1, mouseX, mouseY);
   });
   viewport.addEventListener('mousedown', e => {
-      if (e.button === 1) { // MODIFICA: Pan solo con tasto centrale
+      if (e.button === 1) {
           isPanning = true;
           lastPanX = e.clientX;
           lastPanY = e.clientY;
@@ -1263,7 +1446,9 @@
 
   // GESTIONE SELEZIONE A RETTANGOLO
   viewport.addEventListener('mousedown', e => {
-    if (e.button !== 0 || e.target !== screen) return;
+    if (e.button !== 0 || e.target !== viewport && e.target !== screen) return;
+    if (e.target.closest('.comp')) return;
+
     e.preventDefault();
 
     const screenRect = screen.getBoundingClientRect();
@@ -1329,7 +1514,9 @@
           getAllComps().forEach(comp => {
               const compRect = { x1: comp.offsetLeft, y1: comp.offsetTop, x2: comp.offsetLeft + comp.offsetWidth, y2: comp.offsetTop + comp.offsetHeight };
               const intersects = (compRect.x1 < selectionRect.x2 && compRect.x2 > selectionRect.x1 && compRect.y1 < selectionRect.y2 && compRect.y2 > selectionRect.y1);
-              if (intersects) { itemsToSelect.push(comp); }
+              if (intersects) {
+                  itemsToSelect.push(comp);
+              }
           });
           
           if (marquee.shiftKey) {
@@ -1346,13 +1533,28 @@
       marquee = null;
   }
   
+  undoBtn.addEventListener('click', undo);
+  redoBtn.addEventListener('click', redo);
+
   (function init(){
     state.screens = [{id: uid(), name: 'Schermo 1', canvas: { w:1920, h:1080 }, compositions: []}];
     state.activeScreenId = state.screens[0].id;
     updateScreenSelect();
     applyCanvasSize(1920,1080);
     canvasWInput.value = '1920'; canvasHInput.value = '1080';
-    refreshRecap(); updateToolbarState();
+    refreshRecap(); 
+    updateToolbarState();
+    recordHistory(true);
+
+    // *** INIZIO CODICE AGGIUNTO ***
+    // Setup calcolo inline per i campi del form
+    setupInlineCalc(colsInput, 8);
+    setupInlineCalc(rowsInput, 4);
+    setupInlineCalc(tileWInput, 128);
+    setupInlineCalc(tileHInput, 128);
+    setupInlineCalc(startXInput, 0);
+    setupInlineCalc(startYInput, 0);
+    // *** FINE CODICE AGGIUNTO ***
 
     setupEditableValue(fontSizeValue, fontSizeSlider);
     setupEditableValue(nameOffsetXValue, nameOffsetXSlider);
